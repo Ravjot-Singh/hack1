@@ -1,0 +1,234 @@
+// Scheduling Optimizer data model. Every tenant-owned row carries institutionId.
+// Flexible, solver-shaped settings (grids, rules, preferences) are stored as JSON and
+// typed by src/lib/solver/types.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WorkloadMode {
+  LTP
+  HOURS
+}
+
+enum VersionStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+model Institution {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  /// string[] e.g. ["Mon", ..., "Sat"]
+  days           Json
+  /// {start, end}[] shared bell schedule
+  periods        Json
+  passingMinutes Int      @default(5)
+  /// RuleSettings
+  rules          Json
+  isDemo         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  departments Department[]
+  buildings   Building[]
+  rooms       Room[]
+  grids       TimeGrid[]
+  teachers    Teacher[]
+  programs    Program[]
+  sections    Section[]
+  subjects    Subject[]
+  offerings   Offering[]
+  baskets     ElectiveBasket[]
+  versions    TimetableVersion[]
+}
+
+model Department {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  code          String
+
+  rooms    Room[]
+  teachers Teacher[]
+  programs Program[]
+  sections Section[]
+  subjects Subject[]
+
+  @@unique([institutionId, code])
+}
+
+model Building {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  /// Record<buildingId, minutes>
+  travelMinutes Json        @default("{}")
+  rooms         Room[]
+}
+
+model Room {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  type          String
+  capacity      Int
+  buildingId    String?
+  building      Building?   @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  ownerDeptId   String?
+  ownerDept     Department? @relation(fields: [ownerDeptId], references: [id], onDelete: SetNull)
+  isEventVenue  Boolean     @default(false)
+}
+
+model TimeGrid {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  /// boolean[day][period]
+  open          Json
+  sections      Section[]
+}
+
+model Program {
+  id            String       @id @default(cuid())
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  departmentId  String
+  department    Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  name          String
+  workloadMode  WorkloadMode @default(LTP)
+  sections      Section[]
+
+  @@unique([institutionId, name])
+}
+
+model Section {
+  id            String           @id @default(cuid())
+  institutionId String
+  institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programId     String
+  program       Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  departmentId  String
+  department    Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  gridId        String
+  grid          TimeGrid         @relation(fields: [gridId], references: [id])
+  year          Int
+  name          String
+  size          Int
+  batches       Batch[]
+  offerings     Offering[]       @relation("OfferingSections")
+  baskets       ElectiveBasket[]
+}
+
+model Batch {
+  id        String  @id @default(cuid())
+  sectionId String
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  name      String
+  size      Int
+}
+
+model Teacher {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  departmentId  String
+  department    Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  name          String
+  email         String?
+  designation   String
+  maxPerDay     Int
+  maxPerWeek    Int
+  /// [day, period][]
+  unavailable   Json        @default("[]")
+  /// SlotPref[]
+  prefs         Json        @default("[]")
+  offerings     Offering[]  @relation("OfferingTeachers")
+  labOfferings  Offering[]  @relation("OfferingLabTeachers")
+}
+
+model Subject {
+  id             String       @id @default(cuid())
+  institutionId  String
+  institution    Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  departmentId   String
+  department     Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  code           String
+  name           String
+  mode           WorkloadMode @default(LTP)
+  L              Int          @default(0)
+  T              Int          @default(0)
+  P              Int          @default(0)
+  hoursPerWeek   Int          @default(0)
+  theoryRoomType String       @default("Classroom")
+  labRoomType    String       @default("Classroom")
+  labBlockLen    Int          @default(2)
+  offerings      Offering[]
+
+  @@unique([institutionId, code])
+}
+
+model ElectiveBasket {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  sections      Section[]
+  offerings     Offering[]
+}
+
+model Offering {
+  id            String          @id @default(cuid())
+  institutionId String
+  institution   Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  subjectId     String
+  subject       Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  sections      Section[]       @relation("OfferingSections")
+  teachers      Teacher[]       @relation("OfferingTeachers")
+  labTeachers   Teacher[]       @relation("OfferingLabTeachers")
+  batchwiseLab  Boolean         @default(true)
+  basketId      String?
+  basket        ElectiveBasket? @relation(fields: [basketId], references: [id], onDelete: SetNull)
+  expectedSize  Int?
+}
+
+model TimetableVersion {
+  id            String        @id @default(cuid())
+  institutionId String
+  institution   Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  status        VersionStatus @default(DRAFT)
+  quality       Int
+  /// ScoreBreakdown + solve stats
+  stats         Json
+  /// InstituteInput snapshot the version was solved from, so it always renders consistently.
+  snapshot      Json
+  createdAt     DateTime      @default(now())
+  placements    Placement[]
+}
+
+model Placement {
+  id        String           @id @default(cuid())
+  versionId String
+  version   TimetableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  lessonId  String
+  day       Int
+  period    Int
+  roomId    String
+  pinned    Boolean          @default(false)
+
+  @@unique([versionId, lessonId])
+  @@index([versionId, roomId])
+}
