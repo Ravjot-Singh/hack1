@@ -128,3 +128,28 @@
     @apply font-sans;
   }
 }
+/* Timetable cells: one hue per subject (--h), readable in light, dark and print. */
+.lesson-card {
+  background: oklch(0.95 0.045 var(--h));
+  border-color: oklch(0.82 0.09 var(--h));
+  color: oklch(0.3 0.07 var(--h));
+}
+.dark .lesson-card {
+  background: oklch(0.32 0.06 var(--h));
+  border-color: oklch(0.45 0.09 var(--h));
+  color: oklch(0.95 0.02 var(--h));
+}
+.tt-closed {
+  background: repeating-linear-gradient(135deg, var(--muted) 0 6px, transparent 6px 12px);
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
