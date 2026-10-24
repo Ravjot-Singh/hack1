@@ -67,7 +67,10 @@ describe("mapping imported tables", () => {
   });
 
   it("re-importing updates matching rows instead of duplicating them", () => {
-    const imported = [{ name: "Applied Sciences", code: "AS" }, { name: "Civil Engineering", code: "CE" }];
+    const imported: { id?: string; name: string; code: string }[] = [
+      { name: "Applied Sciences", code: "AS" },
+      { name: "Civil Engineering", code: "CE" },
+    ];
     const merged = mergeRows("departments", data.departments, imported, "merge");
     expect(merged).toHaveLength(5);
     expect(merged.find((d) => d.code === "AS")!.id).toBe("d-as");

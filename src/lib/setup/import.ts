@@ -392,7 +392,7 @@ export function exportTable(entity: Entity, data: SetupRows, lk: Lookups): strin
   const nameOf = (list: { id: string; name: string }[], id: string | null | undefined) => list.find((x) => x.id === id)?.name ?? "";
   const yes = (b: boolean | undefined) => (b ? "yes" : "no");
   const slots = (s: [number, number][]) => formatSlots(s, lk.days, lk.periods);
-  let body: (string | number)[][] = [];
+  let body: unknown[][] = [];
   switch (entity) {
     case "departments":
       body = data.departments.map((d) => [d.name, d.code]);
@@ -452,7 +452,7 @@ export function exportTable(entity: Entity, data: SetupRows, lk: Lookups): strin
       });
       break;
   }
-  return [header, ...body.map((r) => r.map(String))];
+  return [header, ...body.map((r) => r.map((c) => (c == null ? "" : String(c))))];
 }
 
 /** Header + example rows for an empty template. */
