@@ -12,7 +12,8 @@
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
-    "db:prod": "node scripts/with-prod-db.mjs"
+    "db:prod": "node scripts/with-prod-db.mjs",
+    "db:check": "tsx scripts/check-db.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
