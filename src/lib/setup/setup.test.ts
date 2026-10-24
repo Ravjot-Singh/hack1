@@ -110,3 +110,17 @@ describe("round trip: demo -> CSV files -> empty institute -> timetable", () => 
     expect(result.violations).toEqual([]);
   });
 });
+
+describe("new college bell schedule", () => {
+  it("builds periods with a short break and keeps lunch as a closed period", async () => {
+    const { buildPeriods, defaultGrid } = await import("./bell");
+    const periods = buildPeriods({ start: "09:00", periodMinutes: 50, periods: 8, breakAfter: 2, breakMinutes: 10, lunchPeriod: 5 });
+    expect(periods[0]).toEqual({ start: "09:00", end: "09:50" });
+    expect(periods[2]).toEqual({ start: "10:50", end: "11:40" });
+    expect(periods[7]).toEqual({ start: "15:00", end: "15:50" });
+    const grid = defaultGrid(["Mon", "Sat"], 8, 5, true);
+    expect(grid[0].filter(Boolean)).toHaveLength(7);
+    expect(grid[0][4]).toBe(false);
+    expect(grid[1]).toEqual([true, true, true, true, false, false, false, false]);
+  });
+});

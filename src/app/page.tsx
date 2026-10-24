@@ -56,7 +56,10 @@ export default function Home() {
               Try it with a sample college <ArrowRight />
             </Button>
           </form>
-          <Link href="/demo" className={buttonVariants({ size: "lg", variant: "outline" })}>
+          <Link href="/new" className={buttonVariants({ size: "lg", variant: "outline" })}>
+            Set up your college
+          </Link>
+          <Link href="/demo" className={buttonVariants({ size: "lg", variant: "ghost" })}>
             View the shared demo
           </Link>
         </div>
