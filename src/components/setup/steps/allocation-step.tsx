@@ -14,6 +14,7 @@ import { newId, type BasketRow, type OfferingRow } from "@/lib/setup/schemas";
 import { cn } from "@/lib/utils";
 import { EditableTable, type Column } from "../editable-table";
 import { ImportDialog } from "../import-dialog";
+import { SuggestDialog } from "../suggest-dialog";
 import type { StepProps } from "../step-view";
 
 export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepProps) {
@@ -128,6 +129,7 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
             ))}
           </select>
           <div className="ml-auto flex gap-2">
+            <SuggestDialog slug={slug} fullData={fullData} data={data} sectionId={sectionId} disabled={readOnly} />
             <Button variant="ghost" size="sm" onClick={() => downloadCsv("allocation.csv", exportTable("allocation", data, lookups))} disabled={!data.offerings.length}>
               <Download /> Export all
             </Button>

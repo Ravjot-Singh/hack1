@@ -75,6 +75,9 @@ Setup tips that matter for real colleges:
 - Elective baskets make electives of several sections run at the same time.
 - The allocation step shows every teacher's load live, and the review step links each
   readiness problem to the step that fixes it.
+- **Suggest teachers** fills subjects that have no teacher: whoever already teaches the subject,
+  then its department, spreading load evenly and never over anyone's weekly limit. You review
+  and tick suggestions before they're saved.
 
 ## Setup
 
@@ -134,6 +137,6 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 
 ## Roadmap
 
-The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: "Suggest allocation", plain-English
+The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: plain-English
 rules via Claude, utilization heatmap, substitutions, academic calendar, venue booking,
 teacher appointments and placement drives.

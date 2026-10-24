@@ -124,3 +124,43 @@ describe("new college bell schedule", () => {
     expect(grid[1]).toEqual([true, true, true, true, false, false, false, false]);
   });
 });
+
+describe("suggest allocation", () => {
+  it("fills every missing teacher within load limits, and the result solves cleanly", async () => {
+    const { suggestTeachers } = await import("./suggest");
+    const { precheck } = await import("@/lib/solver");
+    const data = fromInstituteInput(demoCollege());
+    // Forget who teaches what, except one existing CS201 teacher.
+    data.offerings = data.offerings.map((o) =>
+      o.id === "o-27" ? o : { ...o, teacherIds: [], labTeacherIds: [] },
+    );
+    const suggestions = suggestTeachers(data);
+    expect(suggestions.length).toBe(data.offerings.length - 1);
+    expect(suggestions.every((s) => s.teacherId && s.loadAfter <= s.maxPerWeek)).toBe(true);
+    // The other CS201 section goes to the teacher who already teaches CS201.
+    const cs201 = data.offerings.find((o) => o.subjectId === "sub-cs201" && o.id !== "o-27")!;
+    const kept = data.offerings.find((o) => o.id === "o-27")!.teacherIds![0];
+    expect(suggestions.find((s) => s.offeringId === cs201.id)?.teacherId).toBe(kept);
+
+    const applied = {
+      ...data,
+      offerings: data.offerings.map((o) => {
+        const s = suggestions.find((x) => x.offeringId === o.id);
+        return s ? { ...o, teacherIds: [s.teacherId!] } : o;
+      }),
+    };
+    const problem = buildProblem(toInstituteInput(applied));
+    expect(precheck(problem).filter((i) => i.severity === "error")).toEqual([]);
+    const result = solve(problem, { seed: 2, improveMs: 200 });
+    expect(result.unscheduled).toEqual([]);
+    expect(result.violations).toEqual([]);
+  });
+
+  it("never gives one teacher two electives of the same basket", async () => {
+    const { suggestTeachers } = await import("./suggest");
+    const data = fromInstituteInput(demoCollege());
+    data.offerings = data.offerings.map((o) => (o.basketId ? { ...o, teacherIds: [], labTeacherIds: [] } : o));
+    const picks = suggestTeachers(data).map((s) => s.teacherId);
+    expect(new Set(picks).size).toBe(picks.length);
+  });
+});
