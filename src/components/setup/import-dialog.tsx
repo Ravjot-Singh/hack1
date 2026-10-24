@@ -101,6 +101,13 @@ export function ImportDialog({ entity, noun, lookups, disabled, description, onI
             >
               <Download /> Download template
             </Button>
+            <a
+              href={`/samples/${entity}.csv`}
+              download
+              className="ml-3 text-sm text-muted-foreground underline-offset-2 hover:underline"
+            >
+              or a filled-in sample
+            </a>
           </div>
 
           <label className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed p-5 text-center hover:bg-muted/40">

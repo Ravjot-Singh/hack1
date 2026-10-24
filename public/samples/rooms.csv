@@ -1,0 +1,21 @@
+﻿name,type,capacity,building,owner_department,event_venue
+M-101,Classroom,70,Main Block,,no
+M-102,Classroom,70,Main Block,,no
+M-103,Classroom,70,Main Block,,no
+M-104,Classroom,70,Main Block,,no
+M-105,Classroom,70,Main Block,,no
+M-106,Classroom,70,Main Block,,no
+Physics Lab,Physics Lab,36,Main Block,AS,no
+Chemistry Lab,Chemistry Lab,36,Main Block,AS,no
+Seminar Hall,Seminar Hall,200,Main Block,,yes
+E-201,Classroom,70,Engineering Block,CSE,no
+E-202,Classroom,70,Engineering Block,CSE,no
+E-203,Classroom,70,Engineering Block,ECE,no
+E-204,Classroom,70,Engineering Block,,no
+CS Lab 1,Computer Lab,36,Engineering Block,CSE,no
+CS Lab 2,Computer Lab,36,Engineering Block,,no
+Electronics Lab,Electronics Lab,36,Engineering Block,ECE,no
+Central Workshop,Workshop,36,Workshop Block,ME,no
+CAD Lab,Computer Lab,36,Workshop Block,ME,no
+Materials Lab,Mechanical Lab,36,Workshop Block,ME,no
+W-301,Classroom,70,Workshop Block,ME,no

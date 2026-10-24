@@ -9,6 +9,7 @@ export function InstNav() {
   const slug = path.split("/")[1] ?? "";
   const items = [
     { href: `/${slug}`, label: "Overview", exact: true },
+    { href: `/${slug}/setup`, label: "Setup" },
     { href: `/${slug}/solve`, label: "Generate" },
     { href: `/${slug}/timetables`, label: "Timetables" },
   ];

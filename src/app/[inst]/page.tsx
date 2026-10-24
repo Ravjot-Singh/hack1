@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { getInstitution } from "@/lib/inst";
 import { loadInstituteInput } from "@/lib/institute";
 import { buildProblem, precheck } from "@/lib/solver";
+import { stepForIssue } from "@/lib/setup/steps";
 
 async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "params">) {
   const { inst: slug } = await params;
@@ -41,9 +42,20 @@ async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "param
             {input.periods.at(-1)?.end})
           </p>
         </div>
-        <Link href={`/${slug}/solve`} className={buttonVariants({ size: "lg" })}>
-          Generate timetable <ArrowRight />
-        </Link>
+        {problem.lessons.length ? (
+          <div className="flex gap-2">
+            <Link href={`/${slug}/setup`} className={buttonVariants({ size: "lg", variant: "outline" })}>
+              Edit data
+            </Link>
+            <Link href={`/${slug}/solve`} className={buttonVariants({ size: "lg" })}>
+              Generate timetable <ArrowRight />
+            </Link>
+          </div>
+        ) : (
+          <Link href={`/${slug}/setup`} className={buttonVariants({ size: "lg" })}>
+            Start setup <ArrowRight />
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -66,7 +78,16 @@ async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "param
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <IssueList issues={issues} />
+            {problem.lessons.length ? (
+              <IssueList issues={issues} fixHref={(i) => `/${slug}/setup/${stepForIssue(i.rule)}`} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Nothing to schedule yet.{" "}
+                <Link href={`/${slug}/setup`} className="font-medium text-foreground underline-offset-2 hover:underline">
+                  Set up departments, rooms, teachers, sections and subjects →
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>

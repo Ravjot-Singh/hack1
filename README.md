@@ -29,9 +29,25 @@ in plain English.
 
 ## Try it
 
-The landing page offers **Try it with a sample college**, which creates your own copy of the
-demo college (4 departments, 22 teachers, 10 sections, 3 buildings). Then click **Generate**,
-**Save as draft**, and switch between section, teacher and room views.
+- **Try it with a sample college** creates your own copy of the demo college (4 departments,
+  22 teachers, 10 sections, 3 buildings). Then click **Generate**, **Save as draft**, and switch
+  between section, teacher and room views.
+- **Set up your college** starts from scratch: name, working days and bell schedule, then a
+  10-step setup wizard (time grids, departments, rooms, teachers, sections, subjects,
+  allocation, rules, review). Every list can be typed into a spreadsheet-style table or
+  imported from **CSV or Excel (.xlsx)**. Each import dialog offers an empty template and a
+  filled-in sample from [`public/samples/`](public/samples/). Re-importing updates matching
+  rows instead of duplicating them.
+- The shared `/demo` is read-only; **Make my own copy** gives you an editable one.
+
+Setup tips that matter for real colleges:
+
+- Teacher load limits fill in from the designation (Professor 14, Associate 16, Assistant 18
+  periods/week) and can be overridden. **Availability** marks never/prefer/rather-not slots.
+- Staggered lunch = two time grids with a different closed period; each section picks one.
+- Elective baskets make electives of several sections run at the same time.
+- The allocation step shows every teacher's load live, and the review step links each
+  readiness problem to the step that fixes it.
 
 ## Setup
 
@@ -71,6 +87,8 @@ src/lib/solver/      Pure TypeScript solver (no DB or framework imports)
   validate.ts        Independent hard-rule checker (used by tests, server save, version view)
   explain.ts         Feasibility pre-checks with fixes
   score.ts           Soft-goal penalties -> 0-100 quality
+src/lib/setup/       Setup wizard logic: row schemas (zod), CSV/Excel import + export, conversions
+src/components/setup/ Editable table, import dialog, slot matrix, wizard steps
 src/workers/         Web Worker wrapper with progress messages
 src/lib/institute.ts DB <-> solver mapping (Prisma 7 + Postgres)
 src/app/             Next.js 16 App Router pages, server actions
@@ -80,8 +98,7 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 
 ## Roadmap
 
-The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next phases: setup wizard and CSV
-import, drag-and-drop editing with live rule checks, roles (Institute Admin, HOD, Teacher,
+The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next phases: drag-and-drop editing with live rule checks, roles (Institute Admin, HOD, Teacher,
 Student, Placement Officer, Venue Manager, Lab Assistant) with approval workflow,
 plain-English rules via Claude, utilization heatmap, substitutions, academic calendar,
 venue booking, teacher appointments and placement drives.

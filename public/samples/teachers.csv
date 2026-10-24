@@ -1,0 +1,23 @@
+﻿name,department,designation,max_per_day,max_per_week,email,unavailable,prefer,avoid
+Dr. Meera Iyer,AS,Professor,4,14,,Sat P1-P4,,
+Mr. Arjun Bedi,AS,Assistant Professor,5,18,,,,
+Dr. Kavita Rao,AS,Associate Professor,4,16,,,Mon P1-P3; Tue P1-P3; Wed P1-P3; Thu P1-P3; Fri P1-P3,Mon P8; Tue P8; Wed P8; Thu P8; Fri P8
+Ms. Neha Gill,AS,Assistant Professor,5,18,,,,
+Dr. Sanjay Verma,AS,Associate Professor,4,16,,,,
+Ms. Pooja Arora,AS,Assistant Professor,5,18,,,,
+Ms. Ritu Sharma,AS,Assistant Professor,5,18,,,,
+Mr. Harpreet Singh,AS,Assistant Professor,5,18,,,,
+Dr. Rajesh Kumar,CSE,Professor,4,14,,Fri P5-P8,,
+Dr. Anita Desai,CSE,Associate Professor,4,16,,,,
+Mr. Vikram Malhotra,CSE,Assistant Professor,5,18,,,,
+Ms. Simran Kaur,CSE,Assistant Professor,5,18,,,,
+Mr. Rohit Bansal,CSE,Assistant Professor,5,18,,,,
+Ms. Priya Nair,CSE,Assistant Professor,5,18,,,,
+Dr. Suresh Menon,ECE,Professor,4,14,,,,
+Dr. Farah Khan,ECE,Associate Professor,4,16,,,,
+Mr. Gurpreet Dhillon,ECE,Assistant Professor,5,18,,,,
+Ms. Ananya Ghosh,ECE,Assistant Professor,5,18,,,,
+Dr. Balwinder Sandhu,ME,Professor,4,14,,,,Sat P1-P4
+Mr. Karan Mehta,ME,Assistant Professor,5,18,,,,
+Mr. Deepak Yadav,ME,Assistant Professor,5,18,,,,
+Ms. Jaspreet Kaur,ME,Assistant Professor,5,18,,,,

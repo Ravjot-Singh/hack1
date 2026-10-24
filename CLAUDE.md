@@ -36,6 +36,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `explain.ts` contains the feasibility pre-checks and the reasons an unplaced lesson was blocked.
 - Student clashes use **atoms**: each batch (or a section with no batches) is an atom. A section lesson
   occupies all its atoms, and a batch lesson occupies one.
+- `src/lib/setup/` is the setup wizard's pure logic: zod row schemas (`schemas.ts`), CSV/Excel import mapping,
+  export and templates (`import.ts`), and conversions between wizard rows and the solver input (`convert.ts`).
+  Server actions live in `src/app/[inst]/setup/actions.ts`; each save is a diff in one transaction, checks
+  ids belong to the institute, refuses the read-only `/demo`, and blocks deletes that would cascade.
+- `npm run samples` regenerates `public/samples/*.csv` from the demo college.
 - Every DB row carries `institutionId` (multi-college tenancy).
 
 ## Conventions

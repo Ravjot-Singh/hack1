@@ -13,7 +13,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
     "db:prod": "node scripts/with-prod-db.mjs",
-    "db:check": "tsx scripts/check-db.ts"
+    "db:check": "tsx scripts/check-db.ts",
+    "samples": "tsx scripts/export-demo-csv.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

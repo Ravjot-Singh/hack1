@@ -1,0 +1,30 @@
+﻿code,name,department,L,T,P,hours_per_week,theory_room_type,lab_room_type,lab_block
+MA101,Engineering Mathematics-I,AS,3,1,0,,Classroom,,
+PH101,Engineering Physics,AS,3,0,2,,Classroom,Physics Lab,2
+CY101,Engineering Chemistry,AS,3,0,2,,Classroom,Chemistry Lab,2
+CS101,Programming for Problem Solving,CSE,3,0,2,,Classroom,Computer Lab,2
+ME101,Workshop Practice,ME,0,0,2,,Classroom,Workshop,2
+HS101,Communicative English,AS,2,0,0,,Classroom,,
+MA201,Mathematics-III,AS,3,1,0,,Classroom,,
+HS201,Universal Human Values,AS,2,0,0,,Classroom,,
+CS201,Data Structures,CSE,3,0,2,,Classroom,Computer Lab,2
+CS203,Object Oriented Programming,CSE,3,0,2,,Classroom,Computer Lab,2
+CS204,Discrete Mathematics,CSE,3,1,0,,Classroom,,
+EC201,Analog Circuits,ECE,3,0,2,,Classroom,Electronics Lab,2
+EC202,Signals & Systems,ECE,3,1,0,,Classroom,,
+EC203,Digital Electronics,ECE,3,0,2,,Classroom,Electronics Lab,2
+ME201,Thermodynamics,ME,3,1,0,,Classroom,,
+ME202,Strength of Materials,ME,3,0,2,,Classroom,Mechanical Lab,2
+ME203,Computer Aided Drawing,ME,1,0,3,,Classroom,Computer Lab,3
+CS301,Operating Systems,CSE,3,0,2,,Classroom,Computer Lab,2
+CS302,Database Systems,CSE,3,0,2,,Classroom,Computer Lab,2
+CS303,Theory of Computation,CSE,3,1,0,,Classroom,,
+EC301,Communication Systems,ECE,3,0,2,,Classroom,Electronics Lab,2
+EC302,Microprocessors,ECE,3,0,2,,Classroom,Electronics Lab,2
+EC303,Control Systems,ECE,3,1,0,,Classroom,,
+ME301,Fluid Mechanics,ME,3,0,2,,Classroom,Mechanical Lab,2
+ME302,Manufacturing Processes,ME,3,0,2,,Classroom,Workshop,2
+ME303,Machine Design,ME,3,1,0,,Classroom,,
+OE301,Introduction to AI,CSE,3,0,0,,Classroom,,
+OE302,Internet of Things,ECE,3,0,0,,Classroom,,
+OE303,Renewable Energy Systems,ME,3,0,0,,Classroom,,
