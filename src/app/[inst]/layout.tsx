@@ -31,10 +31,12 @@ async function Header({ params }: Pick<LayoutProps<"/[inst]">, "params">) {
   const { inst: slug } = await params;
   const access = await getAccess(slug);
   const items: NavItem[] = [{ href: `/${slug}`, label: "Overview", exact: true }];
+  if (access.member) items.push({ href: `/${slug}/today`, label: "Today" });
   if (access.member?.teacherId || access.member?.sectionId) items.push({ href: `/${slug}/me`, label: "My timetable" });
   if (access.can("setup.view")) items.push({ href: `/${slug}/setup`, label: "Setup" });
   if (access.can("timetable.generate")) items.push({ href: `/${slug}/solve`, label: "Generate" });
   items.push({ href: `/${slug}/timetables`, label: "Timetables" });
+  if (access.can("calendar.manage")) items.push({ href: `/${slug}/calendar`, label: "Calendar" });
   if (access.can("people.manage")) items.push({ href: `/${slug}/people`, label: "People" });
   return (
     <>

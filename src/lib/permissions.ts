@@ -47,7 +47,9 @@ export type Action =
   | "timetable.signoff"
   | "timetable.publish"
   | "timetable.share"
-  | "people.manage";
+  | "people.manage"
+  /** Term dates, holidays, exam days and day swaps. */
+  | "calendar.manage";
 
 export interface Member {
   role: Role;
@@ -68,6 +70,7 @@ const GRANTS: Record<Action, Role[]> = {
   "timetable.publish": ["HEAD_OF_INSTITUTE"],
   "timetable.share": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD"],
   "people.manage": ["INSTITUTE_ADMIN"],
+  "calendar.manage": ["INSTITUTE_ADMIN"],
 };
 
 export interface PermissionContext {

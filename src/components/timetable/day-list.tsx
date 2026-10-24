@@ -4,7 +4,20 @@ import { subjectHue, type ViewKind } from "./timetable-grid";
 const KIND: Record<string, string> = { T: "Tutorial", P: "Lab" };
 
 /** Day-by-day agenda of one timetable; easier to read than the week grid on a phone. */
-export function DayList({ problem, assignment, view, entityId }: { problem: Problem; assignment: Assignment; view: ViewKind; entityId: string }) {
+export function DayList({
+  problem,
+  assignment,
+  view,
+  entityId,
+  onlyDay,
+}: {
+  problem: Problem;
+  assignment: Assignment;
+  view: ViewKind;
+  entityId: string;
+  /** Show just this day (no day heading), e.g. for the Today view. */
+  onlyDay?: number;
+}) {
   const { input } = problem;
   const rooms = new Map(input.rooms.map((r) => [r.id, r.name]));
   const teachers = new Map(input.teachers.map((t) => [t.id, t.name]));
@@ -21,10 +34,11 @@ export function DayList({ problem, assignment, view, entityId }: { problem: Prob
   return (
     <div className="space-y-4">
       {input.days.map((day, d) => {
+        if (onlyDay !== undefined && d !== onlyDay) return null;
         const today = items.filter((x) => x.a.day === d).sort((x, y) => x.a.period - y.a.period || x.l.label.localeCompare(y.l.label));
         return (
           <section key={day}>
-            <h3 className="mb-1.5 text-sm font-semibold">{day}</h3>
+            {onlyDay === undefined && <h3 className="mb-1.5 text-sm font-semibold">{day}</h3>}
             {today.length === 0 ? (
               <p className="text-sm text-muted-foreground">No classes</p>
             ) : (

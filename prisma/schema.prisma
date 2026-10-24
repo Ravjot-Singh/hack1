@@ -36,6 +36,9 @@ model Institution {
   /// RuleSettings
   rules          Json
   isDemo         Boolean  @default(false)
+  /// Teaching term; dates outside it have no classes.
+  termStart      DateTime? @db.Date
+  termEnd        DateTime? @db.Date
   createdAt      DateTime @default(now())
 
   departments Department[]
@@ -52,6 +55,7 @@ model Institution {
   shareLinks  ShareLink[]
   members     Membership[]
   invites     Invite[]
+  calendar    CalendarDay[]
 }
 
 model Department {
@@ -392,4 +396,26 @@ model DeptSignoff {
   createdAt    DateTime         @default(now())
 
   @@unique([versionId, departmentId])
+}
+
+// ---------------------------------------------------------------- Academic calendar
+
+enum CalendarKind {
+  HOLIDAY
+  EXAM
+  /// Classes run but follow another weekday's timetable (e.g. Saturday follows Monday).
+  FOLLOWS
+}
+
+model CalendarDay {
+  id            String       @id @default(cuid())
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  date          DateTime     @db.Date
+  kind          CalendarKind
+  label         String
+  /// For FOLLOWS: index into the institute's days array.
+  followsDay    Int?
+
+  @@unique([institutionId, date])
 }
