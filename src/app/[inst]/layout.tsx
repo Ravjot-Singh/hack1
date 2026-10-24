@@ -37,6 +37,7 @@ async function Header({ params }: Pick<LayoutProps<"/[inst]">, "params">) {
   if (access.can("setup.view")) items.push({ href: `/${slug}/setup`, label: "Setup" });
   if (access.can("timetable.generate")) items.push({ href: `/${slug}/solve`, label: "Generate" });
   items.push({ href: `/${slug}/timetables`, label: "Timetables" });
+  if (access.can("setup.view")) items.push({ href: `/${slug}/insights`, label: "Room use" });
   if (access.can("absence.manage") || access.can("absence.self")) items.push({ href: `/${slug}/absences`, label: "Absences" });
   if (access.can("calendar.manage")) items.push({ href: `/${slug}/calendar`, label: "Calendar" });
   if (access.can("people.manage")) items.push({ href: `/${slug}/people`, label: "People" });

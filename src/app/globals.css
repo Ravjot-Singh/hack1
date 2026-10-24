@@ -153,3 +153,23 @@
     -webkit-print-color-adjust: exact;
   }
 }
+
+/* Ordinal blue ramp (dataviz reference palette, validated with --ordinal) for occupancy buckets,
+   low -> high. Light starts at step 250 so the lowest bucket clears the surface; dark has its own
+   steps (600 -> 200), not a flip. --occupied marks a busy room slot. */
+:root {
+  --seq-1: #86b6ef;
+  --seq-2: #5598e7;
+  --seq-3: #2a78d6;
+  --seq-4: #1c5cab;
+  --seq-5: #104281;
+  --occupied: #2a78d6;
+}
+.dark {
+  --seq-1: #184f95;
+  --seq-2: #256abf;
+  --seq-3: #3987e5;
+  --seq-4: #6da7ec;
+  --seq-5: #9ec5f4;
+  --occupied: #5598e7;
+}

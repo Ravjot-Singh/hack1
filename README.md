@@ -63,6 +63,10 @@ Day to day:
   department, then whoever has covered least this month), or can be cancelled. The substitute,
   the absent teacher and the affected students get an in-app notification (bell icon).
 
+- **Room use**: a heatmap of every room across the week (busy, free, closed), with average
+  use, rooms under 30%, never-used rooms and the busiest slot; filter by building, type or
+  owner, or switch to a table.
+
 ### Roles
 
 | Role | Can |
@@ -148,5 +152,5 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 ## Roadmap
 
 The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: plain-English
-rules via Claude, utilization heatmap, venue booking,
+rules via Claude, venue booking,
 teacher appointments and placement drives.
