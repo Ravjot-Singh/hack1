@@ -21,11 +21,13 @@ interface Props {
   noun: string;
   lookups: Lookups;
   disabled?: boolean;
+  /** Overrides the default "rows land in the table" explanation. */
+  description?: string;
   onImport: (result: ImportResult<Record<string, unknown>>, mode: "merge" | "replace") => void;
 }
 
 /** Upload a CSV/Excel file, check it, and hand the rows to the table (unsaved). */
-export function ImportDialog({ entity, noun, lookups, disabled, onImport }: Props) {
+export function ImportDialog({ entity, noun, lookups, disabled, description, onImport }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -74,8 +76,8 @@ export function ImportDialog({ entity, noun, lookups, disabled, onImport }: Prop
         <DialogHeader>
           <DialogTitle>Import {noun}</DialogTitle>
           <DialogDescription>
-            Upload a CSV or Excel (.xlsx) file. The first row must be column headers. Rows land in the table so you can
-            review them before saving.
+            {description ??
+              "Upload a CSV or Excel (.xlsx) file. The first row must be column headers. Rows land in the table so you can review them before saving."}
           </DialogDescription>
         </DialogHeader>
 

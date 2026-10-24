@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/db";
 import type { RuleSettings, SlotPref } from "@/lib/solver/types";
 import type { SetupData } from "./convert";
@@ -101,3 +102,6 @@ export async function loadSetup(institutionId: string): Promise<SetupData> {
       })),
   };
 }
+
+/** Per-request cached loader so the setup layout and page share one query. */
+export const getSetup = cache(loadSetup);

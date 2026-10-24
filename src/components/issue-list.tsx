@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import type { Issue } from "@/lib/solver/types";
 
 /** Readiness / feasibility issues with plain-language fixes. */
-export function IssueList({ issues }: { issues: Issue[] }) {
+export function IssueList({ issues, fixHref }: { issues: Issue[]; fixHref?: (issue: Issue) => string }) {
   if (!issues.length) {
     return (
       <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
@@ -21,7 +22,16 @@ export function IssueList({ issues }: { issues: Issue[] }) {
           )}
           <span>
             {i.message}
-            {i.fix && <span className="block text-muted-foreground">Fix: {i.fix}</span>}
+            {i.fix && (
+              <span className="block text-muted-foreground">
+                Fix: {i.fix}
+                {fixHref && (
+                  <Link href={fixHref(i)} className="ml-1.5 font-medium text-foreground underline-offset-2 hover:underline">
+                    Fix →
+                  </Link>
+                )}
+              </span>
+            )}
           </span>
         </li>
       ))}
