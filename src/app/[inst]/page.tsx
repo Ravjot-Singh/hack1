@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -8,7 +10,7 @@ import { getInstitution } from "@/lib/inst";
 import { loadInstituteInput } from "@/lib/institute";
 import { buildProblem, precheck } from "@/lib/solver";
 
-export default async function OverviewPage({ params }: PageProps<"/[inst]">) {
+async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "params">) {
   const { inst: slug } = await params;
   const inst = await getInstitution(slug);
   const input = await loadInstituteInput(inst.id);
@@ -117,5 +119,14 @@ export default async function OverviewPage({ params }: PageProps<"/[inst]">) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Data streams in under a Suspense boundary so navigation between pages is instant.
+export default function OverviewPage({ params }: PageProps<"/[inst]">) {
+  return (
+    <Suspense fallback={<PageSkeleton rows={3} />}>
+      <OverviewPageContent params={params} />
+    </Suspense>
   );
 }

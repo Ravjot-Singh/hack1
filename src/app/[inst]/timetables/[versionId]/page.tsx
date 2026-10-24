@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +9,7 @@ import { getInstitution } from "@/lib/inst";
 import { buildProblem, validate } from "@/lib/solver";
 import type { Assignment, InstituteInput } from "@/lib/solver";
 
-export default async function VersionPage({ params }: PageProps<"/[inst]/timetables/[versionId]">) {
+async function VersionPageContent({ params }: Pick<PageProps<"/[inst]/timetables/[versionId]">, "params">) {
   const { inst: slug, versionId } = await params;
   const inst = await getInstitution(slug);
   const version = await prisma.timetableVersion.findFirst({
@@ -53,5 +55,14 @@ export default async function VersionPage({ params }: PageProps<"/[inst]/timetab
       </div>
       <TimetableExplorer problem={problem} assignment={assignment} title={version.name} />
     </div>
+  );
+}
+
+// Data streams in under a Suspense boundary so navigation between pages is instant.
+export default function VersionPage({ params }: PageProps<"/[inst]/timetables/[versionId]">) {
+  return (
+    <Suspense fallback={<PageSkeleton rows={3} />}>
+      <VersionPageContent params={params} />
+    </Suspense>
   );
 }

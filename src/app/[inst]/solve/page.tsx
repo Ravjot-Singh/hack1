@@ -1,11 +1,10 @@
+import { Suspense } from "react";
 import { getInstitution } from "@/lib/inst";
 import { loadInstituteInput } from "@/lib/institute";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { SolvePanel } from "@/components/solve-panel";
 
-export default async function SolvePage({ params }: PageProps<"/[inst]/solve">) {
-  const { inst: slug } = await params;
-  const inst = await getInstitution(slug);
-  const input = await loadInstituteInput(inst.id);
+export default function SolvePage({ params }: PageProps<"/[inst]/solve">) {
   return (
     <div className="space-y-6">
       <div>
@@ -15,7 +14,16 @@ export default async function SolvePage({ params }: PageProps<"/[inst]/solve">) 
           your browser, and the server checks every rule again before saving.
         </p>
       </div>
-      <SolvePanel slug={slug} input={input} />
+      <Suspense fallback={<PageSkeleton />}>
+        <Solve params={params} />
+      </Suspense>
     </div>
   );
+}
+
+async function Solve({ params }: Pick<PageProps<"/[inst]/solve">, "params">) {
+  const { inst: slug } = await params;
+  const inst = await getInstitution(slug);
+  const input = await loadInstituteInput(inst.id);
+  return <SolvePanel slug={slug} input={input} />;
 }

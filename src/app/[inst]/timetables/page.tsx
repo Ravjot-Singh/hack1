@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -5,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { getInstitution } from "@/lib/inst";
 
-export default async function TimetablesPage({ params }: PageProps<"/[inst]/timetables">) {
+async function TimetablesPageContent({ params }: Pick<PageProps<"/[inst]/timetables">, "params">) {
   const { inst: slug } = await params;
   const inst = await getInstitution(slug);
   const versions = await prisma.timetableVersion.findMany({
@@ -51,5 +53,14 @@ export default async function TimetablesPage({ params }: PageProps<"/[inst]/time
         </div>
       )}
     </div>
+  );
+}
+
+// Data streams in under a Suspense boundary so navigation between pages is instant.
+export default function TimetablesPage({ params }: PageProps<"/[inst]/timetables">) {
+  return (
+    <Suspense fallback={<PageSkeleton rows={3} />}>
+      <TimetablesPageContent params={params} />
+    </Suspense>
   );
 }

@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export function InstNav({ slug }: { slug: string }) {
+export function InstNav() {
   const path = usePathname();
+  const slug = path.split("/")[1] ?? "";
   const items = [
     { href: `/${slug}`, label: "Overview", exact: true },
     { href: `/${slug}/solve`, label: "Generate" },
