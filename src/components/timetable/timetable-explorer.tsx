@@ -1,21 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Assignment, Problem } from "@/lib/solver/types";
-import { SubjectLegend, TimetableGrid, type ViewKind } from "./timetable-grid";
+import { SubjectLegend, TimetableGrid, type GridEdit, type ViewKind } from "./timetable-grid";
 
 interface Props {
   problem: Problem;
   assignment: Assignment;
   /** Shown in the printed header, e.g. "Draft 3". */
   title: string;
+  /** Manual-edit mode (drag / click to move). */
+  edit?: GridEdit;
+  /** Extra controls shown before the Print button. */
+  actions?: ReactNode;
 }
 
 /** Switch between section / teacher / room timetables, with print. */
-export function TimetableExplorer({ problem, assignment, title }: Props) {
+export function TimetableExplorer({ problem, assignment, title, edit, actions }: Props) {
   const { input } = problem;
   const [view, setView] = useState<ViewKind>("section");
   const options = useMemo(() => {
@@ -93,7 +97,8 @@ export function TimetableExplorer({ problem, assignment, title }: Props) {
         <span className="text-sm text-muted-foreground">
           {load} periods/week{view === "section" ? " (per batch)" : ""}
         </span>
-        <Button variant="outline" size="sm" className="ml-auto" onClick={() => window.print()}>
+        <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
           <Printer /> Print / PDF
         </Button>
       </div>
@@ -107,7 +112,7 @@ export function TimetableExplorer({ problem, assignment, title }: Props) {
         </div>
       </div>
 
-      <TimetableGrid problem={problem} assignment={assignment} view={view} entityId={entityId} />
+      <TimetableGrid problem={problem} assignment={assignment} view={view} entityId={entityId} edit={edit} />
       {view === "section" && (
         <div className="rounded-lg border p-3 print:border-0 print:p-0">
           <SubjectLegend problem={problem} sectionId={entityId} />

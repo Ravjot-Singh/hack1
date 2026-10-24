@@ -3,9 +3,10 @@ import { PageSkeleton } from "@/components/page-skeleton";
 import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { TimetableExplorer } from "@/components/timetable/timetable-explorer";
+import { VersionWorkspace } from "@/components/timetable/version-workspace";
 import { prisma } from "@/lib/db";
 import { getInstitution } from "@/lib/inst";
+import { isReadOnly } from "@/lib/setup/load";
 import { buildProblem, validate } from "@/lib/solver";
 import type { Assignment, InstituteInput } from "@/lib/solver";
 
@@ -19,7 +20,8 @@ async function VersionPageContent({ params }: Pick<PageProps<"/[inst]/timetables
   if (!version) notFound();
 
   // The snapshot is the data the version was solved from, so it always renders consistently.
-  const problem = buildProblem(version.snapshot as unknown as InstituteInput);
+  const snapshot = version.snapshot as unknown as InstituteInput;
+  const problem = buildProblem(snapshot);
   const assignment: Assignment = {};
   for (const p of version.placements) assignment[p.lessonId] = { day: p.day, period: p.period, roomId: p.roomId };
   const { violations, unscheduled } = validate(problem, assignment);
@@ -53,7 +55,16 @@ async function VersionPageContent({ params }: Pick<PageProps<"/[inst]/timetables
           )}
         </p>
       </div>
-      <TimetableExplorer problem={problem} assignment={assignment} title={version.name} />
+      <VersionWorkspace
+        slug={slug}
+        versionId={version.id}
+        title={version.name}
+        snapshot={snapshot}
+        assignment={assignment}
+        pinned={version.placements.filter((p) => p.pinned).map((p) => p.lessonId)}
+        editable={!isReadOnly(inst) && version.status === "DRAFT"}
+        readOnlyReason={isReadOnly(inst) ? "Make your own copy of the demo to edit by hand." : undefined}
+      />
     </div>
   );
 }

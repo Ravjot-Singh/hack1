@@ -451,7 +451,7 @@ export class Engine {
         });
         if (closed) continue; // breaks/closed periods are not real options
         total++;
-        bump(this.firstBlock(u, slot));
+        bump(this.reasonAt(u, slot));
       }
     }
     if (!total) return [`Its section's week grid has no ${dur}-period stretch without a break.`];
@@ -461,7 +461,8 @@ export class Engine {
       .map(([reason, n]) => `${n} of ${total} possible slots: ${reason}`);
   }
 
-  private firstBlock(u: number, slot: number): string {
+  /** Why the (currently unplaced) unit can't start at `slot`; "blocked" if no specific reason. */
+  reasonAt(u: number, slot: number): string {
     const { input } = this.problem;
     const dur = this.uDur[u];
     const d = Math.floor(slot / this.P);
@@ -489,5 +490,21 @@ export class Engine {
       return `no free ${l.roomType} for ${l.size} students${this.travelHard ? " (within walking distance)" : ""}`;
     }
     return "blocked";
+  }
+
+  /** Section(s) for which [slot, slot + duration) crosses a break or closed period, else null. */
+  closedFor(u: number, slot: number): string | null {
+    const { input, lessons } = this.problem;
+    const dur = this.uDur[u];
+    const d = Math.floor(slot / this.P);
+    const p = slot % this.P;
+    if (p + dur > this.P) return "the day ends";
+    const sections = new Map(input.sections.map((s) => [s.id, s]));
+    const grids = new Map(input.grids.map((g) => [g.id, g]));
+    for (const sid of new Set(this.uLessons[u].flatMap((l) => lessons[l].sectionIds))) {
+      const g = grids.get(sections.get(sid)?.gridId ?? "");
+      for (let k = p; k < p + dur; k++) if (!g?.open[d]?.[k]) return sections.get(sid)?.name ?? sid;
+    }
+    return null;
   }
 }
