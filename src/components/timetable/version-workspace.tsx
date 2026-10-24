@@ -10,6 +10,7 @@ import type { Assignment, InstituteInput } from "@/lib/solver";
 import { runSolver } from "@/lib/solver-client";
 import { EditSession } from "@/lib/solver/edit";
 import { cn } from "@/lib/utils";
+import { ShareDialog } from "./share-dialog";
 import { TimetableExplorer } from "./timetable-explorer";
 
 interface Props {
@@ -213,7 +214,13 @@ export function VersionWorkspace({ slug, versionId, title, snapshot, assignment,
         problem={problem}
         assignment={state.assignment}
         title={title}
-        actions={actions}
+        actions={(current) => (
+          <>
+            {/* Sharing publishes the saved version, so it's hidden while there are hand edits in progress. */}
+            {!editing && <ShareDialog slug={slug} versionId={versionId} current={current} />}
+            {actions}
+          </>
+        )}
         edit={
           editing
             ? {

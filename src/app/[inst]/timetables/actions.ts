@@ -62,3 +62,42 @@ export async function saveEdits(
   revalidatePath(`/${slug}`, "layout");
   return { ok: true, quality: breakdown.quality };
 }
+
+// ---------------------------------------------------------------- Share links
+
+const SHARE_VIEWS = new Set(["section", "teacher", "room"]);
+
+function newToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return Buffer.from(bytes).toString("base64url");
+}
+
+export type ShareResult = { ok: true; token: string } | { ok: false; error: string };
+
+/**
+ * Public read-only link to one section/teacher/room timetable (or the whole college when
+ * `view` is null). Re-sharing the same thing returns the existing link.
+ */
+export async function createShareLink(
+  slug: string,
+  versionId: string,
+  view: string | null,
+  entityId: string | null,
+): Promise<ShareResult> {
+  const inst = await getInstitution(slug);
+  const version = await prisma.timetableVersion.findFirst({ where: { id: versionId, institutionId: inst.id } });
+  if (!version) return { ok: false, error: "This timetable no longer exists." };
+  if (view !== null && (!SHARE_VIEWS.has(view) || !entityId)) return { ok: false, error: "Pick what to share." };
+  const where = { institutionId: inst.id, versionId, view, entityId: view ? entityId : null };
+  const existing = await prisma.shareLink.findFirst({ where });
+  if (existing) return { ok: true, token: existing.token };
+  const link = await prisma.shareLink.create({ data: { ...where, token: newToken() } });
+  return { ok: true, token: link.token };
+}
+
+/** Stop a share link from working. */
+export async function revokeShareLink(slug: string, token: string): Promise<{ ok: boolean }> {
+  const inst = await getInstitution(slug);
+  const res = await prisma.shareLink.deleteMany({ where: { token, institutionId: inst.id } });
+  return { ok: res.count > 0 };
+}

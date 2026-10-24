@@ -49,6 +49,7 @@ model Institution {
   offerings   Offering[]
   baskets     ElectiveBasket[]
   versions    TimetableVersion[]
+  shareLinks  ShareLink[]
 }
 
 model Department {
@@ -217,6 +218,7 @@ model TimetableVersion {
   snapshot      Json
   createdAt     DateTime      @default(now())
   placements    Placement[]
+  shareLinks    ShareLink[]
 }
 
 model Placement {
@@ -231,4 +233,20 @@ model Placement {
 
   @@unique([versionId, lessonId])
   @@index([versionId, roomId])
+}
+
+/// Public read-only link to a timetable (no login). `view`/`entityId` null = the whole college.
+model ShareLink {
+  id            String           @id @default(cuid())
+  token         String           @unique
+  institutionId String
+  institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  versionId     String
+  version       TimetableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  /// "section" | "teacher" | "room"
+  view          String?
+  entityId      String?
+  createdAt     DateTime         @default(now())
+
+  @@index([versionId])
 }

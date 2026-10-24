@@ -5,6 +5,7 @@ import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Assignment, Problem } from "@/lib/solver/types";
+import { DayList } from "./day-list";
 import { SubjectLegend, TimetableGrid, type GridEdit, type ViewKind } from "./timetable-grid";
 
 interface Props {
@@ -14,14 +15,23 @@ interface Props {
   title: string;
   /** Manual-edit mode (drag / click to move). */
   edit?: GridEdit;
-  /** Extra controls shown before the Print button. */
-  actions?: ReactNode;
+  /** Extra controls shown before the Print button; may depend on what is being viewed. */
+  actions?: ReactNode | ((current: ExplorerContext) => ReactNode);
+  /** Show only this one timetable (no view/entity pickers), e.g. on a shared link. */
+  fixed?: { view: ViewKind; entityId: string };
+}
+
+export interface ExplorerContext {
+  view: ViewKind;
+  entityId: string;
+  entityName: string;
 }
 
 /** Switch between section / teacher / room timetables, with print. */
-export function TimetableExplorer({ problem, assignment, title, edit, actions }: Props) {
+export function TimetableExplorer({ problem, assignment, title, edit, actions, fixed }: Props) {
   const { input } = problem;
-  const [view, setView] = useState<ViewKind>("section");
+  const [pickedView, setView] = useState<ViewKind>("section");
+  const view = fixed?.view ?? pickedView;
   const options = useMemo(() => {
     const depts = input.departments;
     if (view === "section") {
@@ -48,7 +58,7 @@ export function TimetableExplorer({ problem, assignment, title, edit, actions }:
     teacher: input.teachers[0]?.id ?? "",
     room: input.rooms.find((r) => !r.isEventVenue)?.id ?? "",
   });
-  const entityId = selected[view];
+  const entityId = fixed?.entityId ?? selected[view];
   const entityName = options.flatMap((o) => o.items).find((i) => i.id === entityId)?.name ?? "";
   // Weekly periods; for a section, counted for one student group (its first batch).
   const load = useMemo(() => {
@@ -71,33 +81,39 @@ export function TimetableExplorer({ problem, assignment, title, edit, actions }:
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <Tabs value={view} onValueChange={(v) => setView(v as ViewKind)}>
-          <TabsList>
-            <TabsTrigger value="section">Sections</TabsTrigger>
-            <TabsTrigger value="teacher">Teachers</TabsTrigger>
-            <TabsTrigger value="room">Rooms</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <select
-          aria-label={`Choose ${view}`}
-          value={entityId}
-          onChange={(e) => setSelected((s) => ({ ...s, [view]: e.target.value }))}
-          className="h-8 min-w-48 rounded-lg border bg-background px-2 text-sm"
-        >
-          {options.map((o) => (
-            <optgroup key={o.group} label={o.group}>
-              {o.items.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
+        {!fixed && (
+          <>
+            <Tabs value={view} onValueChange={(v) => setView(v as ViewKind)}>
+              <TabsList>
+                <TabsTrigger value="section">Sections</TabsTrigger>
+                <TabsTrigger value="teacher">Teachers</TabsTrigger>
+                <TabsTrigger value="room">Rooms</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <select
+              aria-label={`Choose ${view}`}
+              value={entityId}
+              onChange={(e) => setSelected((s) => ({ ...s, [view]: e.target.value }))}
+              className="h-8 min-w-48 rounded-lg border bg-background px-2 text-sm"
+            >
+              {options.map((o) => (
+                <optgroup key={o.group} label={o.group}>
+                  {o.items.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
-            </optgroup>
-          ))}
-        </select>
+            </select>
+          </>
+        )}
         <span className="text-sm text-muted-foreground">
           {load} periods/week{view === "section" ? " (per batch)" : ""}
         </span>
-        <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {typeof actions === "function" ? actions({ view, entityId, entityName }) : actions}
+        </div>
         <Button variant="outline" size="sm" onClick={() => window.print()}>
           <Printer /> Print / PDF
         </Button>
@@ -112,7 +128,19 @@ export function TimetableExplorer({ problem, assignment, title, edit, actions }:
         </div>
       </div>
 
-      <TimetableGrid problem={problem} assignment={assignment} view={view} entityId={entityId} edit={edit} />
+      {edit ? (
+        <TimetableGrid problem={problem} assignment={assignment} view={view} entityId={entityId} edit={edit} />
+      ) : (
+        <>
+          {/* Phones get a day-by-day list; the week grid is for wider screens and print. */}
+          <div className="md:hidden print:hidden">
+            <DayList problem={problem} assignment={assignment} view={view} entityId={entityId} />
+          </div>
+          <div className="hidden md:block print:block">
+            <TimetableGrid problem={problem} assignment={assignment} view={view} entityId={entityId} />
+          </div>
+        </>
+      )}
       {view === "section" && (
         <div className="rounded-lg border p-3 print:border-0 print:p-0">
           <SubjectLegend problem={problem} sectionId={entityId} />
