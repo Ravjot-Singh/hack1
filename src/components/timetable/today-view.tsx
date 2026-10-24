@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { addDays, resolveDay, todayIso, type CalendarInfo } from "@/lib/calendar";
 import { buildProblem } from "@/lib/solver";
 import type { Assignment, InstituteInput } from "@/lib/solver";
-import { DayList } from "./day-list";
+import { DayList, type DayCover } from "./day-list";
 import type { ViewKind } from "./timetable-grid";
 
 interface Props {
@@ -17,10 +17,12 @@ interface Props {
   /** The viewer's own timetable (teacher or section); otherwise they pick. */
   fixed: { view: ViewKind; entityId: string } | null;
   versionName: string;
+  /** Substitutions/cancellations for upcoming dates, keyed by "YYYY-MM-DD". */
+  covers: Record<string, DayCover[]>;
 }
 
 /** One date's classes: the published weekly timetable resolved through the academic calendar. */
-export function TodayView({ snapshot, assignment, calendar, fixed, versionName }: Props) {
+export function TodayView({ snapshot, assignment, calendar, fixed, versionName, covers }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -101,7 +103,7 @@ export function TodayView({ snapshot, assignment, calendar, fixed, versionName }
           <CalendarOff className="size-5" /> No classes. {plan.reason}.
         </div>
       ) : (
-        <DayList problem={problem} assignment={assignment} view={view} entityId={entityId} onlyDay={plan.dayIndex} />
+        <DayList problem={problem} assignment={assignment} view={view} entityId={entityId} onlyDay={plan.dayIndex} covers={covers[date] ?? []} />
       )}
     </div>
   );

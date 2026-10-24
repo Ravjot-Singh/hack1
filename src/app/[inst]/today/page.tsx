@@ -4,6 +4,7 @@ import { PageSkeleton } from "@/components/page-skeleton";
 import { TodayView } from "@/components/timetable/today-view";
 import { checkPage } from "@/lib/access";
 import { loadCalendar } from "@/lib/calendar-db";
+import { loadRecentCovers } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
 import type { Assignment, InstituteInput } from "@/lib/solver";
 
@@ -37,6 +38,7 @@ async function Today({ params }: Pick<PageProps<"/[inst]/today">, "params">) {
         ? { view: "section" as const, entityId: m.sectionId }
         : null;
   const { specials, ...rest } = await loadCalendar(access.inst.id);
+  const covers = await loadRecentCovers(access.inst.id, version.id, snapshot);
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
@@ -47,6 +49,7 @@ async function Today({ params }: Pick<PageProps<"/[inst]/today">, "params">) {
           calendar={{ ...rest, specials: specials.map(({ date, kind, label, followsDay }) => ({ date, kind, label, followsDay })) }}
           fixed={fixed}
           versionName={version.name}
+          covers={covers}
         />
       </Suspense>
     </div>

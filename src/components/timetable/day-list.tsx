@@ -1,7 +1,16 @@
 import type { Assignment, Problem } from "@/lib/solver/types";
+import { cn } from "@/lib/utils";
 import { subjectHue, type ViewKind } from "./timetable-grid";
 
 const KIND: Record<string, string> = { T: "Tutorial", P: "Lab" };
+
+/** A one-day change to a class (only meaningful together with `onlyDay`). */
+export interface DayCover {
+  lessonId: string;
+  action: "SUBSTITUTE" | "CANCEL";
+  substituteId: string | null;
+  substituteName: string | null;
+}
 
 /** Day-by-day agenda of one timetable; easier to read than the week grid on a phone. */
 export function DayList({
@@ -10,6 +19,7 @@ export function DayList({
   view,
   entityId,
   onlyDay,
+  covers = [],
 }: {
   problem: Problem;
   assignment: Assignment;
@@ -17,6 +27,8 @@ export function DayList({
   entityId: string;
   /** Show just this day (no day heading), e.g. for the Today view. */
   onlyDay?: number;
+  /** Substitutions and cancellations on that day. */
+  covers?: DayCover[];
 }) {
   const { input } = problem;
   const rooms = new Map(input.rooms.map((r) => [r.id, r.name]));
@@ -24,10 +36,16 @@ export function DayList({
   const sections = new Map(input.sections.map((s) => [s.id, s.name]));
   const batches = new Map(input.sections.flatMap((s) => s.batches.map((b) => [b.id, b.name] as const)));
 
+  const coverOf = new Map(covers.map((c) => [c.lessonId, c]));
   const items = problem.lessons
     .filter((l) => assignment[l.id])
     .filter((l) =>
-      view === "section" ? l.sectionIds.includes(entityId) : view === "teacher" ? l.teacherIds.includes(entityId) : assignment[l.id].roomId === entityId,
+      view === "section"
+        ? l.sectionIds.includes(entityId)
+        : view === "teacher"
+          ? // A teacher's day also includes classes they are covering.
+            l.teacherIds.includes(entityId) || coverOf.get(l.id)?.substituteId === entityId
+          : assignment[l.id].roomId === entityId,
     )
     .map((l) => ({ l, a: assignment[l.id] }));
 
@@ -51,8 +69,14 @@ export function DayList({
                       ? l.sectionIds.map((s) => sections.get(s)).join(", ")
                       : l.teacherIds.map((t) => teachers.get(t)).join(", ");
                   const extra = [KIND[l.kind], l.batchId ? batches.get(l.batchId) : null, l.unitId !== l.id ? "Elective" : null].filter(Boolean);
+                  const cover = coverOf.get(l.id);
+                  const covering = view === "teacher" && cover?.substituteId === entityId;
                   return (
-                    <li key={l.id} className="lesson-card flex gap-3 rounded-md border px-3 py-2 text-sm" style={{ ["--h" as string]: subjectHue(l.subjectCode) }}>
+                    <li
+                      key={l.id}
+                      className={cn("lesson-card flex gap-3 rounded-md border px-3 py-2 text-sm", cover?.action === "CANCEL" && "opacity-60")}
+                      style={{ ["--h" as string]: subjectHue(l.subjectCode) }}
+                    >
                       <div className="w-24 shrink-0 tabular-nums">
                         <div className="font-medium">{start}–{end}</div>
                         <div className="text-xs opacity-75">
@@ -61,7 +85,12 @@ export function DayList({
                         </div>
                       </div>
                       <div className="min-w-0">
-                        <div className="font-medium">
+                        {cover && (
+                          <div className="mb-0.5 text-xs font-semibold uppercase tracking-wide">
+                            {cover.action === "CANCEL" ? "Cancelled" : covering ? "You're covering this class" : `Substitute: ${cover.substituteName}`}
+                          </div>
+                        )}
+                        <div className={cn("font-medium", cover?.action === "CANCEL" && "line-through")}>
                           {l.subjectCode} · {l.subjectName}
                           {extra.length > 0 && <span className="ml-1 text-xs opacity-75">({extra.join(", ")})</span>}
                         </div>

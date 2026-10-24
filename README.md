@@ -53,6 +53,16 @@ Once a timetable is generated:
   teacher or room, or the whole college. Links can follow the latest published timetable.
   On phones the timetable becomes a day-by-day list.
 
+Day to day:
+
+- **Calendar**: term dates, holidays, exam days and swaps ("Saturday follows Monday").
+- **Today**: any date's classes from the published timetable after the calendar, with
+  substitutions and cancellations shown.
+- **Absences**: mark a teacher absent (or report yourself); each missed class gets ranked
+  substitutes who are free, present and under their daily limit (same subject first, then
+  department, then whoever has covered least this month), or can be cancelled. The substitute,
+  the absent teacher and the affected students get an in-app notification (bell icon).
+
 ### Roles
 
 | Role | Can |
@@ -138,5 +148,5 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 ## Roadmap
 
 The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: plain-English
-rules via Claude, utilization heatmap, substitutions, academic calendar, venue booking,
+rules via Claude, utilization heatmap, venue booking,
 teacher appointments and placement drives.

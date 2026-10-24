@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { CalendarRange } from "lucide-react";
+import { Bell, CalendarRange } from "lucide-react";
 import { InstNav, type NavItem } from "@/components/inst-nav";
 import { UserMenu } from "@/components/user-menu";
 import { getAccess } from "@/lib/access";
+import { prisma } from "@/lib/db";
 import { ROLE_LABEL } from "@/lib/permissions";
 
 // The header shell prerenders; the institute name, role-aware nav and user menu stream in.
@@ -36,6 +37,7 @@ async function Header({ params }: Pick<LayoutProps<"/[inst]">, "params">) {
   if (access.can("setup.view")) items.push({ href: `/${slug}/setup`, label: "Setup" });
   if (access.can("timetable.generate")) items.push({ href: `/${slug}/solve`, label: "Generate" });
   items.push({ href: `/${slug}/timetables`, label: "Timetables" });
+  if (access.can("absence.manage") || access.can("absence.self")) items.push({ href: `/${slug}/absences`, label: "Absences" });
   if (access.can("calendar.manage")) items.push({ href: `/${slug}/calendar`, label: "Calendar" });
   if (access.can("people.manage")) items.push({ href: `/${slug}/people`, label: "People" });
   return (
@@ -45,7 +47,26 @@ async function Header({ params }: Pick<LayoutProps<"/[inst]">, "params">) {
       <Suspense>
         <InstNav items={access.user || access.publicDemo ? items : []} />
       </Suspense>
+      {access.member && access.user && <NotificationBell slug={slug} userId={access.user.id} institutionId={access.inst.id} />}
       <UserMenu next={`/${slug}`} />
     </>
+  );
+}
+
+async function NotificationBell({ slug, userId, institutionId }: { slug: string; userId: string; institutionId: string }) {
+  const unread = await prisma.notification.count({ where: { userId, institutionId, readAt: null } });
+  return (
+    <Link
+      href={`/${slug}/notifications`}
+      className="relative rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+      aria-label={unread ? `${unread} unread notifications` : "Notifications"}
+    >
+      <Bell className="size-4" />
+      {unread > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] leading-4 font-medium text-white">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </Link>
   );
 }

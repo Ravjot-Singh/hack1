@@ -56,6 +56,9 @@ model Institution {
   members     Membership[]
   invites     Invite[]
   calendar    CalendarDay[]
+  absences    Absence[]
+  covers      Cover[]
+  notifications Notification[]
 }
 
 model Department {
@@ -418,4 +421,59 @@ model CalendarDay {
   followsDay    Int?
 
   @@unique([institutionId, date])
+}
+
+// ---------------------------------------------------------------- Absences, substitutions, notifications
+
+/// A teacher away on a date: whole day (periods = []) or specific periods (0-based).
+model Absence {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  teacherId     String
+  date          DateTime    @db.Date
+  periods       Json        @default("[]")
+  reason        String?
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@unique([institutionId, teacherId, date])
+  @@index([institutionId, date])
+}
+
+enum CoverAction {
+  SUBSTITUTE
+  CANCEL
+}
+
+/// What happens to one class of the published timetable on one date.
+model Cover {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  date          DateTime    @db.Date
+  versionId     String
+  lessonId      String
+  action        CoverAction
+  substituteId  String?
+  note          String?
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@unique([institutionId, date, lessonId])
+  @@index([institutionId, date])
+}
+
+/// In-app message for one user (substitutions, cancellations, ...).
+model Notification {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  userId        String
+  text          String
+  link          String?
+  createdAt     DateTime    @default(now())
+  readAt        DateTime?
+
+  @@index([userId, readAt])
 }

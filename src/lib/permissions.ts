@@ -49,7 +49,11 @@ export type Action =
   | "timetable.share"
   | "people.manage"
   /** Term dates, holidays, exam days and day swaps. */
-  | "calendar.manage";
+  | "calendar.manage"
+  /** Mark teachers absent and arrange substitutes (HOD: own department). */
+  | "absence.manage"
+  /** Report yourself absent. */
+  | "absence.self";
 
 export interface Member {
   role: Role;
@@ -71,6 +75,8 @@ const GRANTS: Record<Action, Role[]> = {
   "timetable.share": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD"],
   "people.manage": ["INSTITUTE_ADMIN"],
   "calendar.manage": ["INSTITUTE_ADMIN"],
+  "absence.manage": ["INSTITUTE_ADMIN", "HOD"],
+  "absence.self": ["TEACHER", "HOD"],
 };
 
 export interface PermissionContext {
