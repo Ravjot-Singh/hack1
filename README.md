@@ -29,16 +29,43 @@ in plain English.
 
 ## Try it
 
-- **Try it with a sample college** creates your own copy of the demo college (4 departments,
-  22 teachers, 10 sections, 3 buildings). Then click **Generate**, **Save as draft**, and switch
-  between section, teacher and room views.
+- **Try it with a sample college** (free account) creates your own copy of the demo college
+  (4 departments, 22 teachers, 10 sections, 3 buildings) with you as its admin. Then click
+  **Generate**, **Save as draft**, and switch between section, teacher and room views.
 - **Set up your college** starts from scratch: name, working days and bell schedule, then a
   10-step setup wizard (time grids, departments, rooms, teachers, sections, subjects,
   allocation, rules, review). Every list can be typed into a spreadsheet-style table or
   imported from **CSV or Excel (.xlsx)**. Each import dialog offers an empty template and a
   filled-in sample from [`public/samples/`](public/samples/). Re-importing updates matching
   rows instead of duplicating them.
-- The shared `/demo` is read-only; **Make my own copy** gives you an editable one.
+- The shared `/demo` can be viewed without an account but not changed; **Make my own copy** gives
+  you an editable one.
+
+Once a timetable is generated:
+
+- **Edit by hand**: pick or drag a class; every slot shows move (green), swap (blue), allowed
+  but lowers quality (amber) or not allowed (red, with the reason). Moved classes are pinned;
+  **Re-solve around pins** rearranges the rest. Saves are re-validated on the server.
+- **Review and publish**: the admin sends a draft for review, each department's HOD approves or
+  requests changes (with a comment), and the Head of Institute publishes. Publishing archives
+  the previous timetable. Teachers, students and staff only ever see published timetables.
+- **Share**: a public read-only link and QR code (with a printable poster) for one section,
+  teacher or room, or the whole college. Links can follow the latest published timetable.
+  On phones the timetable becomes a day-by-day list.
+
+### Roles
+
+| Role | Can |
+|---|---|
+| Institute Admin | Everything: setup, generate, hand-edit drafts, send for review, people & invites |
+| Head of Institute | View drafts and setup, publish approved timetables |
+| Head of Department | Edit their own department's teachers, programs, sections, subjects and allocation; sign off timetables |
+| Teacher / Student | **My timetable** (their own, from the published version) and published timetables |
+| Placement Officer, Venue Manager, Lab Assistant | Published timetables (their own modules are on the roadmap) |
+
+The admin invites people from **People**: one link per person (copy, WhatsApp or CSV export),
+or **Invite all teachers** in one click. Links work once and expire after 14 days. If a
+college has no Head of Institute, the admin can publish.
 
 Setup tips that matter for real colleges:
 
@@ -55,11 +82,15 @@ Requirements: Node 20+ and PostgreSQL (local, or [Neon](https://neon.tech) for d
 
 ```bash
 npm install                 # also generates the Prisma client
-cp .env.example .env        # then set DATABASE_URL
+cp .env.example .env        # then set DATABASE_URL (and BETTER_AUTH_SECRET for production)
 npx prisma migrate dev      # create tables
 npm run db:seed             # load the demo college at /demo
 npm run dev                 # http://localhost:3000
 ```
+
+For local testing of roles, `npx tsx scripts/seed-dev-users.ts <college-slug>` creates one
+account per role (admin, HOI, CSE HOD, teacher, student) in that college; the shared dev
+password is in the script. Never run it against production.
 
 Tests and checks:
 
@@ -72,8 +103,11 @@ npm run lint
 ## Deploying (Vercel + Neon)
 
 1. Create a Neon project and copy its pooled connection string.
-2. Import the repo in Vercel and set `DATABASE_URL` in the project's environment variables.
-3. Run `npx prisma migrate deploy` and `npm run db:seed` once against the Neon database.
+2. Import the repo in Vercel and set the environment variables: `DATABASE_URL` (Neon),
+   `BETTER_AUTH_SECRET` (`openssl rand -base64 32`; login won't work without it) and
+   `BETTER_AUTH_URL` (the Vercel URL).
+3. Run `npx prisma migrate deploy` and `npm run db:seed` once against the Neon database
+   (`npm run db:prod -- npx prisma migrate deploy` uses `PROD_DB_URL` from `.env`).
 4. Deploy. The solver runs in the browser (Web Worker), so there are no serverless timeouts.
 
 ## Architecture
@@ -90,6 +124,8 @@ src/lib/solver/      Pure TypeScript solver (no DB or framework imports)
 src/lib/setup/       Setup wizard logic: row schemas (zod), CSV/Excel import + export, conversions
 src/components/setup/ Editable table, import dialog, slot matrix, wizard steps
 src/workers/         Web Worker wrapper with progress messages
+src/lib/permissions.ts Role -> action matrix (pure, unit-tested); src/lib/access.ts applies it per request
+src/lib/auth.ts      Better Auth (email + password, optional Google), sessions in Postgres
 src/lib/institute.ts DB <-> solver mapping (Prisma 7 + Postgres)
 src/app/             Next.js 16 App Router pages, server actions
 ```
@@ -98,7 +134,6 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 
 ## Roadmap
 
-The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next phases: drag-and-drop editing with live rule checks, roles (Institute Admin, HOD, Teacher,
-Student, Placement Officer, Venue Manager, Lab Assistant) with approval workflow,
-plain-English rules via Claude, utilization heatmap, substitutions, academic calendar,
-venue booking, teacher appointments and placement drives.
+The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: "Suggest allocation", plain-English
+rules via Claude, utilization heatmap, substitutions, academic calendar, venue booking,
+teacher appointments and placement drives.

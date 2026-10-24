@@ -3,8 +3,8 @@ import { Lock } from "lucide-react";
 import { createDemoCopy } from "@/app/actions";
 import { StepRail } from "@/components/setup/step-rail";
 import { Button } from "@/components/ui/button";
-import { getInstitution } from "@/lib/inst";
-import { getSetup, isReadOnly } from "@/lib/setup/load";
+import { checkPage, getAccess } from "@/lib/access";
+import { getSetup } from "@/lib/setup/load";
 import { stepCounts } from "@/lib/setup/steps";
 
 export default function SetupLayout({ children, params }: LayoutProps<"/[inst]/setup">) {
@@ -25,14 +25,14 @@ export default function SetupLayout({ children, params }: LayoutProps<"/[inst]/s
 
 async function Rail({ params }: Pick<LayoutProps<"/[inst]/setup">, "params">) {
   const { inst: slug } = await params;
-  const inst = await getInstitution(slug);
-  return <StepRail counts={stepCounts(await getSetup(inst.id))} />;
+  const access = await checkPage(slug, "setup.view");
+  if ("denied" in access) return null;
+  return <StepRail counts={stepCounts(await getSetup(access.inst.id))} />;
 }
 
 async function ReadOnlyBanner({ params }: Pick<LayoutProps<"/[inst]/setup">, "params">) {
   const { inst: slug } = await params;
-  const inst = await getInstitution(slug);
-  if (!isReadOnly(inst)) return null;
+  if (!(await getAccess(slug)).publicDemo) return null;
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
       <Lock className="size-4 shrink-0" />

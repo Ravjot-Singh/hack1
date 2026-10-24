@@ -16,6 +16,8 @@ export interface StepProps {
   slug: string;
   data: SetupData;
   readOnly: boolean;
+  /** HOD's department: department steps show and edit only its rows. */
+  scope: string | null;
 }
 
 const VIEWS: Record<StepSlug, (p: StepProps) => React.ReactNode> = {
@@ -31,7 +33,7 @@ const VIEWS: Record<StepSlug, (p: StepProps) => React.ReactNode> = {
   review: ReviewStep,
 };
 
-export function StepView({ step, ...props }: StepProps & { step: StepSlug }) {
+export function StepView({ step, note, ...props }: StepProps & { step: StepSlug; note: string | null }) {
   const i = STEPS.findIndex((s) => s.slug === step);
   const meta = STEPS[i];
   const next = STEPS[i + 1];
@@ -44,6 +46,7 @@ export function StepView({ step, ...props }: StepProps & { step: StepSlug }) {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">{meta.title}</h1>
         <p className="text-muted-foreground">{meta.help}</p>
+        {note && <p className="mt-2 inline-block rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground">{note}</p>}
       </div>
       <View {...props} />
       {next && (

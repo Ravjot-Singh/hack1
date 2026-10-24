@@ -21,7 +21,7 @@ const GOAL_LABELS: Record<string, string> = {
   roomUtilization: "Rarely-used rooms",
 };
 
-export function SolvePanel({ slug, input }: { slug: string; input: InstituteInput }) {
+export function SolvePanel({ slug, input, canSave }: { slug: string; input: InstituteInput; canSave: boolean }) {
   const router = useRouter();
   const problem = useMemo(() => buildProblem(input), [input]);
   const issues = useMemo(() => precheck(problem), [problem]);
@@ -167,9 +167,13 @@ export function SolvePanel({ slug, input }: { slug: string; input: InstituteInpu
                     .join(" · ")}
                 </CardDescription>
               </div>
-              <Button onClick={save} disabled={saving || result.violations.length > 0}>
-                {saving ? <Loader2 className="animate-spin" /> : <Save />} Save as draft
-              </Button>
+              {canSave ? (
+                <Button onClick={save} disabled={saving || result.violations.length > 0}>
+                  {saving ? <Loader2 className="animate-spin" /> : <Save />} Save as draft
+                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground">The shared demo can&apos;t be saved. Make your own copy to keep timetables.</span>
+              )}
             </CardHeader>
             <CardContent>
               <TimetableExplorer problem={problem} assignment={result.assignment} title="Unsaved preview" />

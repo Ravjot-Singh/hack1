@@ -21,8 +21,20 @@ import type { ExplorerContext } from "./timetable-explorer";
 const WHAT: Record<ExplorerContext["view"], string> = { section: "class", teacher: "faculty", room: "room" };
 
 /** Create a public read-only link (and QR code) for the timetable being viewed, or the whole college. */
-export function ShareDialog({ slug, versionId, current }: { slug: string; versionId: string; current: ExplorerContext }) {
+export function ShareDialog({
+  slug,
+  versionId,
+  current,
+  published,
+}: {
+  slug: string;
+  versionId: string;
+  current: ExplorerContext;
+  /** This version is the published one, so following "latest published" is the natural default. */
+  published: boolean;
+}) {
   const [scope, setScope] = useState<"one" | "all">("one");
+  const [follow, setFollow] = useState(published);
   const [link, setLink] = useState<{ token: string; url: string; qr: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -31,7 +43,7 @@ export function ShareDialog({ slug, versionId, current }: { slug: string; versio
   const create = () =>
     start(async () => {
       setError(null);
-      const res = await createShareLink(slug, versionId, scope === "one" ? current.view : null, scope === "one" ? current.entityId : null);
+      const res = await createShareLink(slug, versionId, scope === "one" ? current.view : null, scope === "one" ? current.entityId : null, follow);
       if (!res.ok) return setError(res.error);
       const url = `${window.location.origin}/s/${res.token}`;
       const qr = await QRCode.toString(url, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
@@ -85,6 +97,15 @@ export function ShareDialog({ slug, versionId, current }: { slug: string; versio
                 </span>
               </label>
             ))}
+            <label className="flex items-start gap-2 pt-1">
+              <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
+              <span>
+                Always show the latest published timetable
+                <span className="block text-muted-foreground">
+                  The link and QR code keep working when a new timetable is published. Untick to share exactly this version.
+                </span>
+              </span>
+            </label>
             {error && <p className="text-destructive">{error}</p>}
           </div>
         ) : (

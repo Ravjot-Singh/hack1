@@ -4,17 +4,26 @@ import { prisma } from "@/lib/db";
 import type { Assignment, InstituteInput } from "@/lib/solver/types";
 import type { ViewKind } from "@/components/timetable/timetable-grid";
 
-/** Everything a public share link shows. 404 for unknown or revoked tokens. */
+/**
+ * Everything a public share link shows. A link either pins one version or follows the
+ * institute's latest published timetable. 404 for unknown or revoked tokens.
+ */
 export const getShared = cache(async (token: string) => {
-  const link = await prisma.shareLink.findUnique({
-    where: { token },
-    include: { institution: true, version: { include: { placements: true } } },
-  });
+  const link = await prisma.shareLink.findUnique({ where: { token }, include: { institution: true } });
   if (!link) notFound();
-  const snapshot = link.version.snapshot as unknown as InstituteInput;
-  const assignment: Assignment = {};
-  for (const p of link.version.placements) assignment[p.lessonId] = { day: p.day, period: p.period, roomId: p.roomId };
+  const follows = !link.versionId;
+  const version = await prisma.timetableVersion.findFirst({
+    where: follows ? { institutionId: link.institutionId, status: "PUBLISHED" } : { id: link.versionId! },
+    include: { placements: true },
+    orderBy: { publishedAt: "desc" },
+  });
   const view = (link.view as ViewKind | null) ?? null;
+  const base = { collegeName: link.institution.name, follows };
+  if (!version) return { ...base, version: null };
+
+  const snapshot = version.snapshot as unknown as InstituteInput;
+  const assignment: Assignment = {};
+  for (const p of version.placements) assignment[p.lessonId] = { day: p.day, period: p.period, roomId: p.roomId };
   const entityName =
     view === "section"
       ? snapshot.sections.find((s) => s.id === link.entityId)?.name
@@ -24,12 +33,15 @@ export const getShared = cache(async (token: string) => {
           ? snapshot.rooms.find((r) => r.id === link.entityId)?.name
           : null;
   return {
-    collegeName: link.institution.name,
-    versionName: link.version.name,
-    savedAt: link.version.createdAt,
-    snapshot,
-    assignment,
-    fixed: view && link.entityId ? { view, entityId: link.entityId } : null,
-    title: entityName ? `${entityName} · ${view === "section" ? "Class" : view === "teacher" ? "Faculty" : "Room"} timetable` : "All timetables",
+    ...base,
+    version: {
+      name: version.name,
+      updatedAt: version.publishedAt ?? version.createdAt,
+      snapshot,
+      assignment,
+      // A followed link whose section/teacher no longer exists falls back to the full explorer.
+      fixed: view && link.entityId && entityName ? { view, entityId: link.entityId } : null,
+      title: entityName ? `${entityName} · ${view === "section" ? "Class" : view === "teacher" ? "Faculty" : "Room"} timetable` : "All timetables",
+    },
   };
 });

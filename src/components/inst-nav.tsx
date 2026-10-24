@@ -4,17 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export function InstNav() {
+export interface NavItem {
+  href: string;
+  label: string;
+  exact?: boolean;
+}
+
+/** Institute navigation; items are filtered by role on the server. */
+export function InstNav({ items }: { items: NavItem[] }) {
   const path = usePathname();
-  const slug = path.split("/")[1] ?? "";
-  const items = [
-    { href: `/${slug}`, label: "Overview", exact: true },
-    { href: `/${slug}/setup`, label: "Setup" },
-    { href: `/${slug}/solve`, label: "Generate" },
-    { href: `/${slug}/timetables`, label: "Timetables" },
-  ];
   return (
-    <nav className="ml-auto flex gap-1 text-sm">
+    <nav className="ml-auto flex flex-wrap gap-1 text-sm">
       {items.map((i) => {
         const active = i.exact ? path === i.href : path.startsWith(i.href);
         return (

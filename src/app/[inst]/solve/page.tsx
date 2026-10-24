@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { getInstitution } from "@/lib/inst";
+import { NoAccess } from "@/components/no-access";
+import { checkPage } from "@/lib/access";
 import { loadInstituteInput } from "@/lib/institute";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { SolvePanel } from "@/components/solve-panel";
@@ -23,7 +24,8 @@ export default function SolvePage({ params }: PageProps<"/[inst]/solve">) {
 
 async function Solve({ params }: Pick<PageProps<"/[inst]/solve">, "params">) {
   const { inst: slug } = await params;
-  const inst = await getInstitution(slug);
-  const input = await loadInstituteInput(inst.id);
-  return <SolvePanel slug={slug} input={input} />;
+  const access = await checkPage(slug, "timetable.generate");
+  if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}/solve`} />;
+  const input = await loadInstituteInput(access.inst.id);
+  return <SolvePanel slug={slug} input={input} canSave={!access.publicDemo} />;
 }

@@ -6,19 +6,24 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IssueList } from "@/components/issue-list";
 import { prisma } from "@/lib/db";
-import { getInstitution } from "@/lib/inst";
+import { NoAccess } from "@/components/no-access";
+import { checkPage } from "@/lib/access";
 import { loadInstituteInput } from "@/lib/institute";
 import { buildProblem, precheck } from "@/lib/solver";
 import { stepForIssue } from "@/lib/setup/steps";
 
 async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "params">) {
   const { inst: slug } = await params;
-  const inst = await getInstitution(slug);
+  const access = await checkPage(slug);
+  if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}`} />;
+  const { inst } = access;
+  const setup = access.can("setup.view");
   const input = await loadInstituteInput(inst.id);
   const problem = buildProblem(input);
   const issues = precheck(problem);
   const versions = await prisma.timetableVersion.findMany({
-    where: { institutionId: inst.id },
+    // Teachers, students and other roles only ever see published timetables.
+    where: { institutionId: inst.id, ...(access.can("timetable.viewDrafts") ? {} : { status: "PUBLISHED" }) },
     orderBy: { createdAt: "desc" },
     take: 5,
   });
@@ -42,7 +47,7 @@ async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "param
             {input.periods.at(-1)?.end})
           </p>
         </div>
-        {problem.lessons.length ? (
+        {!access.can("timetable.generate") ? null : problem.lessons.length ? (
           <div className="flex gap-2">
             <Link href={`/${slug}/setup`} className={buttonVariants({ size: "lg", variant: "outline" })}>
               Edit data
@@ -70,29 +75,31 @@ async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "param
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Readiness check</CardTitle>
-            <CardDescription>
-              Catches impossible setups before solving: overloaded teachers, missing rooms, too many hours for a section.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {problem.lessons.length ? (
-              <IssueList issues={issues} fixHref={(i) => `/${slug}/setup/${stepForIssue(i.rule)}`} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nothing to schedule yet.{" "}
-                <Link href={`/${slug}/setup`} className="font-medium text-foreground underline-offset-2 hover:underline">
-                  Set up departments, rooms, teachers, sections and subjects →
-                </Link>
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        {setup && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Readiness check</CardTitle>
+              <CardDescription>
+                Catches impossible setups before solving: overloaded teachers, missing rooms, too many hours for a section.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {problem.lessons.length ? (
+                <IssueList issues={issues} fixHref={(i) => `/${slug}/setup/${stepForIssue(i.rule)}`} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nothing to schedule yet.{" "}
+                  <Link href={`/${slug}/setup`} className="font-medium text-foreground underline-offset-2 hover:underline">
+                    Set up departments, rooms, teachers, sections and subjects →
+                  </Link>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader>
-            <CardTitle>Recent timetables</CardTitle>
+            <CardTitle>{setup ? "Recent timetables" : "Published timetables"}</CardTitle>
           </CardHeader>
           <CardContent>
             {versions.length ? (
@@ -100,14 +107,17 @@ async function OverviewPageContent({ params }: Pick<PageProps<"/[inst]">, "param
                 {versions.map((v) => (
                   <li key={v.id}>
                     <Link href={`/${slug}/timetables/${v.id}`} className="flex justify-between hover:underline">
-                      <span>{v.name}</span>
+                      <span>
+                        {v.name}
+                        {v.status !== "DRAFT" && <span className="ml-1.5 text-xs text-muted-foreground">{v.status.toLowerCase()}</span>}
+                      </span>
                       <span className="text-muted-foreground">quality {v.quality}</span>
                     </Link>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">None yet. Generate your first timetable.</p>
+              <p className="text-sm text-muted-foreground">{setup ? "None yet. Generate your first timetable." : "Nothing published yet."}</p>
             )}
           </CardContent>
         </Card>

@@ -50,6 +50,8 @@ model Institution {
   baskets     ElectiveBasket[]
   versions    TimetableVersion[]
   shareLinks  ShareLink[]
+  members     Membership[]
+  invites     Invite[]
 }
 
 model Department {
@@ -64,6 +66,9 @@ model Department {
   programs Program[]
   sections Section[]
   subjects Subject[]
+  members  Membership[]
+  invites  Invite[]
+  signoffs DeptSignoff[]
 
   @@unique([institutionId, code])
 }
@@ -217,8 +222,13 @@ model TimetableVersion {
   /// InstituteInput snapshot the version was solved from, so it always renders consistently.
   snapshot      Json
   createdAt     DateTime      @default(now())
+  submittedAt   DateTime?
+  publishedAt   DateTime?
+  /// User id of whoever published it.
+  publishedBy   String?
   placements    Placement[]
   shareLinks    ShareLink[]
+  signoffs      DeptSignoff[]
 }
 
 model Placement {
@@ -241,12 +251,145 @@ model ShareLink {
   token         String           @unique
   institutionId String
   institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  versionId     String
-  version       TimetableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  /// Null = always show the institute's latest published timetable.
+  versionId     String?
+  version       TimetableVersion? @relation(fields: [versionId], references: [id], onDelete: Cascade)
   /// "section" | "teacher" | "room"
   view          String?
   entityId      String?
   createdAt     DateTime         @default(now())
 
   @@index([versionId])
+}
+
+// ---------------------------------------------------------------- Accounts (Better Auth core tables)
+
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  memberships   Membership[]
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// ---------------------------------------------------------------- Roles & workflow
+
+enum Role {
+  INSTITUTE_ADMIN
+  HEAD_OF_INSTITUTE
+  HOD
+  TEACHER
+  STUDENT
+  PLACEMENT_OFFICER
+  VENUE_MANAGER
+  LAB_ASSISTANT
+}
+
+/// A user's role in one institute. HOD links a department, TEACHER a teacher record, STUDENT a section.
+model Membership {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  role          Role
+  departmentId  String?
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  teacherId     String?
+  sectionId     String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([userId, institutionId])
+  @@index([institutionId])
+}
+
+/// Invite link for one person; accepted by signing up or in with any email.
+model Invite {
+  id            String      @id @default(cuid())
+  token         String      @unique
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  email         String?
+  role          Role
+  departmentId  String?
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  teacherId     String?
+  sectionId     String?
+  invitedBy     String
+  createdAt     DateTime    @default(now())
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  acceptedBy    String?
+
+  @@index([institutionId])
+}
+
+enum SignoffStatus {
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+/// An HOD's review of a timetable version for their department.
+model DeptSignoff {
+  id           String           @id @default(cuid())
+  versionId    String
+  version      TimetableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  status       SignoffStatus
+  comment      String?
+  userId       String
+  createdAt    DateTime         @default(now())
+
+  @@unique([versionId, departmentId])
 }

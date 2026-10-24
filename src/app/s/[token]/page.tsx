@@ -28,16 +28,27 @@ export default function SharedPage({ params }: PageProps<"/s/[token]">) {
 async function Shared({ params }: Pick<PageProps<"/s/[token]">, "params">) {
   const { token } = await params;
   const s = await getShared(token);
+  if (!s.version) {
+    return (
+      <div>
+        <div className="text-sm text-muted-foreground">{s.collegeName}</div>
+        <h1 className="text-2xl font-semibold tracking-tight">No timetable published yet</h1>
+        <p className="text-muted-foreground">This link will show the timetable as soon as the college publishes one.</p>
+      </div>
+    );
+  }
+  const v = s.version;
   return (
     <>
       <div className="print:hidden">
         <div className="text-sm text-muted-foreground">{s.collegeName}</div>
-        <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{v.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {s.versionName} · updated {s.savedAt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+          {s.follows ? "Latest published timetable" : v.name} · updated{" "}
+          {v.updatedAt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
         </p>
       </div>
-      <SharedTimetable snapshot={s.snapshot} assignment={s.assignment} title={s.versionName} fixed={s.fixed} />
+      <SharedTimetable snapshot={v.snapshot} assignment={v.assignment} title={v.name} fixed={v.fixed} />
     </>
   );
 }

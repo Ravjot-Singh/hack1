@@ -1,5 +1,8 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { CalendarRange } from "lucide-react";
+import { getUser } from "@/lib/access";
 import { NewCollegeForm } from "./new-college-form";
 
 export const metadata = { title: "Set up your college · Scheduling Optimizer" };
@@ -14,10 +17,17 @@ export default function NewCollegePage() {
         <h1 className="text-3xl font-semibold tracking-tight">Set up your college</h1>
         <p className="mt-1 text-muted-foreground">
           Start with your week and bell schedule. Next you&apos;ll add departments, rooms, teachers, sections and subjects,
-          typed in or imported from Excel.
+          typed in or imported from Excel. You&apos;ll be the college&apos;s admin and can invite others.
         </p>
       </div>
-      <NewCollegeForm />
+      <Suspense>
+        <SignedInForm />
+      </Suspense>
     </main>
   );
+}
+
+async function SignedInForm() {
+  if (!(await getUser())) redirect("/sign-up?next=/new");
+  return <NewCollegeForm />;
 }

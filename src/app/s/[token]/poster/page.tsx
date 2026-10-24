@@ -29,11 +29,13 @@ async function Poster({ params }: Pick<PageProps<"/s/[token]/poster">, "params">
     <>
       <div>
         <div className="text-lg text-muted-foreground">{s.collegeName}</div>
-        <h1 className="text-4xl font-semibold tracking-tight text-balance">{s.title}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight text-balance">{s.version?.title ?? "Timetable"}</h1>
       </div>
       <div className="w-full max-w-sm rounded-2xl border-2 bg-white p-4" dangerouslySetInnerHTML={{ __html: svg }} />
       <div className="space-y-1">
-        <p className="text-xl font-medium">Scan to see this timetable on your phone</p>
+        <p className="text-xl font-medium">
+          {s.follows ? "Scan for the latest timetable" : "Scan to see this timetable on your phone"}
+        </p>
         <p className="break-all text-sm text-muted-foreground">{url}</p>
       </div>
       <PrintButton />

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getInstitution } from "@/lib/inst";
+import { AccessError, requireAction } from "@/lib/access";
 import { loadInstituteInput } from "@/lib/institute";
 import { buildProblem, score, validate } from "@/lib/solver";
 import type { Assignment } from "@/lib/solver";
@@ -14,7 +14,13 @@ export type SaveResult = { ok: true; versionId: string } | { ok: false; error: s
  * the institute's data, rebuilds the problem and re-validates every hard rule first.
  */
 export async function saveVersion(slug: string, assignment: Assignment, solveMs: number): Promise<SaveResult> {
-  const inst = await getInstitution(slug);
+  let inst;
+  try {
+    inst = (await requireAction(slug, "timetable.generate")).inst;
+  } catch (e) {
+    if (e instanceof AccessError) return { ok: false, error: e.message };
+    throw e;
+  }
   const input = await loadInstituteInput(inst.id);
   const problem = buildProblem(input);
   const known = new Set(problem.lessons.map((l) => l.id));

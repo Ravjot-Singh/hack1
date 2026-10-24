@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getUser } from "@/lib/access";
 import { prisma } from "@/lib/db";
 import { demoCollege } from "@/lib/demo/demo-college";
 import { createInstitute } from "@/lib/institute";
@@ -9,10 +10,17 @@ import { buildPeriods, DEFAULT_RULES, defaultGrid, slugify } from "@/lib/setup/b
 
 const suffix = () => Math.random().toString(36).slice(2, 6);
 
-/** Give a visitor their own copy of the demo college to experiment with. */
+/** Give the signed-in user their own copy of the demo college, with them as its admin. */
 export async function createDemoCopy() {
+  const user = await getUser();
+  if (!user) redirect("/sign-up?next=/");
   const slug = `demo-${Math.random().toString(36).slice(2, 8)}`;
-  await createInstitute({ ...demoCollege(`${slug}-`), name: "Demo Institute of Technology (your copy)" }, slug, true);
+  const institutionId = await createInstitute(
+    { ...demoCollege(`${slug}-`), name: "Demo Institute of Technology (your copy)" },
+    slug,
+    true,
+  );
+  await prisma.membership.create({ data: { userId: user.id, institutionId, role: "INSTITUTE_ADMIN" } });
   redirect(`/${slug}`);
 }
 
@@ -32,8 +40,10 @@ const newCollege = z
 
 export type NewCollegeInput = z.input<typeof newCollege>;
 
-/** Create an empty institute with a bell schedule and one default time grid, then open the setup wizard. */
+/** Create an empty institute (the creator becomes its admin), then open the setup wizard. */
 export async function createBlankInstitute(input: NewCollegeInput): Promise<{ error: string }> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in first." };
   const parsed = newCollege.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const v = parsed.data;
@@ -47,6 +57,7 @@ export async function createBlankInstitute(input: NewCollegeInput): Promise<{ er
       passingMinutes: 5,
       rules: DEFAULT_RULES as object,
       grids: { create: { name: "Standard", open: defaultGrid(v.days, v.periods, v.lunchPeriod, v.halfSaturday) } },
+      members: { create: { userId: user.id, role: "INSTITUTE_ADMIN" } },
     },
   });
   redirect(`/${slug}/setup`);

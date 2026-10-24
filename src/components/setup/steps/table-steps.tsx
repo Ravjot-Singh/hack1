@@ -32,17 +32,17 @@ import { EditableTable, type Column } from "../editable-table";
 import { SlotMatrix } from "../slot-matrix";
 import type { StepProps } from "../step-view";
 
-function useOptions(data: StepProps["data"]) {
+function useOptions(data: StepProps["data"], scope: string | null = null) {
   return useMemo(
     () => ({
       depts: data.departments.map((d) => ({ value: d.id!, label: `${d.code} · ${d.name}` })),
-      deptCodes: data.departments.map((d) => ({ value: d.id!, label: d.code })),
+      deptCodes: data.departments.filter((d) => !scope || d.id === scope).map((d) => ({ value: d.id!, label: d.code })),
       buildings: data.buildings.map((b) => ({ value: b.id!, label: b.name })),
       grids: data.grids.map((g) => ({ value: g.id!, label: g.name })),
-      programs: data.programs.map((p) => ({ value: p.id!, label: p.name })),
+      programs: data.programs.filter((p) => !scope || p.deptId === scope).map((p) => ({ value: p.id!, label: p.name })),
       roomTypes: [...new Set([...data.rooms.map((r) => r.type), ...ROOM_TYPES])],
     }),
-    [data],
+    [data, scope],
   );
 }
 
@@ -210,9 +210,9 @@ function TravelMatrix({ slug, buildings, readOnly }: { slug: string; buildings: 
 
 // ------------------------------------------------------------------ Teachers
 
-export function TeachersStep({ slug, data, readOnly }: StepProps) {
+export function TeachersStep({ slug, data, readOnly, scope }: StepProps) {
   const lookups = lookupsOf(data);
-  const o = useOptions(data);
+  const o = useOptions(data, scope);
   const [editing, setEditing] = useState<{ row: TeacherRow; update: (p: Partial<TeacherRow>) => void } | null>(null);
   if (!data.departments.length) return <Hint>Add departments first; every teacher belongs to one.</Hint>;
   const columns: Column<TeacherRow>[] = [
@@ -244,11 +244,11 @@ export function TeachersStep({ slug, data, readOnly }: StepProps) {
       <EditableTable
         title="Teachers"
         description="Max/day and max/week fill in from the designation (UGC norms) and can be changed. Use Availability for blocked slots and preferences."
-        rows={data.teachers}
+        rows={scope ? data.teachers.filter((t) => t.deptId === scope) : data.teachers}
         columns={columns}
         newRow={() => ({
           name: "",
-          deptId: data.departments[0]?.id ?? "",
+          deptId: scope ?? data.departments[0]?.id ?? "",
           designation: "Assistant Professor",
           maxPerDay: 5,
           maxPerWeek: 18,
@@ -372,9 +372,11 @@ function AvailabilityDialog({
 
 // ------------------------------------------------------------------ Programs & sections
 
-export function SectionsStep({ slug, data, readOnly }: StepProps) {
+export function SectionsStep({ slug, data, readOnly, scope }: StepProps) {
   const lookups = lookupsOf(data);
-  const o = useOptions(data);
+  const o = useOptions(data, scope);
+  const ownPrograms = scope ? data.programs.filter((p) => p.deptId === scope) : data.programs;
+  const ownProgramIds = new Set(ownPrograms.map((p) => p.id));
   if (!data.departments.length) return <Hint>Add departments first; every program belongs to one.</Hint>;
   const programCols: Column<ProgramRow>[] = [
     { key: "name", label: "Program", type: "text", placeholder: "B.Tech CSE", className: "min-w-64" },
@@ -393,22 +395,22 @@ export function SectionsStep({ slug, data, readOnly }: StepProps) {
       <EditableTable<ProgramRow>
         title="Programs"
         description="Degree programs such as B.Tech CSE or MBA. A common first year can be its own program."
-        rows={data.programs}
+        rows={ownPrograms}
         columns={programCols}
-        newRow={() => ({ name: "", deptId: data.departments[0]?.id ?? "" })}
+        newRow={() => ({ name: "", deptId: scope ?? data.departments[0]?.id ?? "" })}
         onSave={(rows) => savePrograms(slug, rows)}
         readOnly={readOnly}
         importer={{ entity: "programs", noun: "programs", lookups, exportTable: () => exportTable("programs", data, lookups) }}
       />
-      {data.programs.length ? (
+      {ownPrograms.length ? (
         <EditableTable
           title="Sections"
           description="Lab batches split a section for practicals (2 = G1 and G2, sizes split evenly). Use 0 if labs run for the whole section."
-          rows={data.sections}
+          rows={scope ? data.sections.filter((s) => ownProgramIds.has(s.programId)) : data.sections}
           columns={sectionCols}
           newRow={() => ({
             name: "",
-            programId: data.programs[0]?.id ?? "",
+            programId: ownPrograms[0]?.id ?? "",
             year: 1,
             size: 60,
             gridId: data.grids[0]?.id ?? "",
@@ -427,9 +429,9 @@ export function SectionsStep({ slug, data, readOnly }: StepProps) {
 
 // ------------------------------------------------------------------ Subjects
 
-export function SubjectsStep({ slug, data, readOnly }: StepProps) {
+export function SubjectsStep({ slug, data, readOnly, scope }: StepProps) {
   const lookups = lookupsOf(data);
-  const o = useOptions(data);
+  const o = useOptions(data, scope);
   if (!data.departments.length) return <Hint>Add departments first; every subject belongs to one.</Hint>;
   const columns: Column<SubjectRow>[] = [
     { key: "code", label: "Code", type: "text", placeholder: "CS201", className: "w-28" },
@@ -462,12 +464,12 @@ export function SubjectsStep({ slug, data, readOnly }: StepProps) {
       <EditableTable<SubjectRow>
         title="Subjects"
         description="L-T-P = weekly lectures, tutorials and practical periods (3-1-2 is typical). Lab block = periods per practical session, kept back-to-back. Room types must match your rooms."
-        rows={data.subjects}
+        rows={scope ? data.subjects.filter((x) => x.deptId === scope) : data.subjects}
         columns={columns}
         newRow={() => ({
           code: "",
           name: "",
-          deptId: data.departments[0]?.id ?? "",
+          deptId: scope ?? data.departments[0]?.id ?? "",
           mode: "LTP",
           L: 3,
           T: 0,

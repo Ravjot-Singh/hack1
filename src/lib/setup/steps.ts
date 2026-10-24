@@ -52,3 +52,6 @@ export const ROOM_TYPES = [
   "Seminar Hall",
   "Auditorium",
 ];
+
+/** Steps an HOD may edit for their own department; the rest are institute-wide (admin only). */
+export const DEPARTMENT_STEPS: StepSlug[] = ["teachers", "sections", "subjects", "allocation"];

@@ -1,6 +1,11 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarRange, Lightbulb, Printer, ShieldCheck, Split, Users } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { UserMenu } from "@/components/user-menu";
+import { getUser } from "@/lib/access";
+import { prisma } from "@/lib/db";
+import { ROLE_LABEL, type Role } from "@/lib/permissions";
 import { createDemoCopy } from "./actions";
 
 const FEATURES = [
@@ -40,9 +45,17 @@ export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-4 py-12 sm:py-20">
       <section className="space-y-6">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <CalendarRange className="size-4" /> Scheduling Optimizer
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <CalendarRange className="size-4" /> Scheduling Optimizer
+          </div>
+          <Suspense>
+            <UserMenu />
+          </Suspense>
         </div>
+        <Suspense>
+          <MyColleges />
+        </Suspense>
         <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
           Clash-free college timetables in seconds, not weeks.
         </h1>
@@ -65,7 +78,7 @@ export default function Home() {
         </div>
         <p className="text-sm text-muted-foreground">
           The sample has 4 departments, 22 teachers, 10 sections with lab batches, 3 buildings and an open-elective basket.
-          You get your own copy to experiment with.
+          You get your own copy to experiment with (free account needed).
         </p>
       </section>
 
@@ -79,5 +92,32 @@ export default function Home() {
         ))}
       </section>
     </main>
+  );
+}
+
+/** Colleges the signed-in user belongs to, with their role. */
+async function MyColleges() {
+  const user = await getUser();
+  if (!user) return null;
+  const memberships = await prisma.membership.findMany({
+    where: { userId: user.id },
+    include: { institution: { select: { name: true, slug: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!memberships.length) return null;
+  return (
+    <div className="rounded-xl border p-4">
+      <h2 className="mb-2 text-sm font-medium text-muted-foreground">Your colleges</h2>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {memberships.map((m) => (
+          <li key={m.id}>
+            <Link href={`/${m.institution.slug}`} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 hover:bg-muted/50">
+              <span className="truncate font-medium">{m.institution.name}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{ROLE_LABEL[m.role as Role]}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

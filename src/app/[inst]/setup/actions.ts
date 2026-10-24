@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import { getInstitution } from "@/lib/inst";
-import { isReadOnly } from "@/lib/setup/load";
+import { AccessError, requireAction } from "@/lib/access";
 import {
   basketRow,
   buildingRow,
@@ -31,11 +30,30 @@ type Tx = Prisma.TransactionClient;
 /** A friendly, expected failure (bad input, guarded delete); shown to the admin as-is. */
 class UserError extends Error {}
 
-async function run(slug: string, work: (institutionId: string, tx: Tx) => Promise<void>): Promise<SaveResult> {
-  const inst = await getInstitution(slug);
-  if (isReadOnly(inst)) return { ok: false, error: "The shared demo is read-only. Make your own copy to edit it." };
+/**
+ * Runs a save in one transaction after checking permissions. `scope` is the HOD's department
+ * for department-level saves (null = the whole institute, for admins).
+ */
+async function run(
+  slug: string,
+  action: "setup.institute" | "setup.department",
+  work: (institutionId: string, tx: Tx, scope: string | null) => Promise<void>,
+): Promise<SaveResult> {
+  let institutionId: string;
+  let scope: string | null = null;
   try {
-    await prisma.$transaction((tx) => work(inst.id, tx), { timeout: 30000 });
+    const access = await requireAction(slug, action);
+    institutionId = access.inst.id;
+    if (access.member?.role === "HOD") {
+      if (!access.member.departmentId) return { ok: false, error: "Your HOD account isn't linked to a department; ask the admin." };
+      scope = access.member.departmentId;
+    }
+  } catch (e) {
+    if (e instanceof AccessError) return { ok: false, error: e.message };
+    throw e;
+  }
+  try {
+    await prisma.$transaction((tx) => work(institutionId, tx, scope), { timeout: 30000 });
   } catch (e) {
     if (e instanceof UserError) return { ok: false, error: e.message };
     if (e instanceof RowsError) return { ok: false, error: e.message, rowErrors: e.rowErrors };
@@ -87,7 +105,7 @@ export async function saveSettings(slug: string, input: unknown): Promise<SaveRe
   const parsed = instituteSettings.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const s = parsed.data;
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.institute", async (institutionId, tx) => {
     const D = s.days.length;
     const P = s.periods.length;
     // Keep every grid and teacher's availability in step with the new week shape.
@@ -113,7 +131,7 @@ export async function saveSettings(slug: string, input: unknown): Promise<SaveRe
 export async function saveRules(slug: string, input: unknown): Promise<SaveResult> {
   const parsed = ruleSettings.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.institute", async (institutionId, tx) => {
     await tx.institution.update({ where: { id: institutionId }, data: { rules: parsed.data } });
   });
 }
@@ -121,7 +139,7 @@ export async function saveRules(slug: string, input: unknown): Promise<SaveResul
 // ---------------------------------------------------------------- Departments
 
 export async function saveDepartments(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(departmentRow, input);
     noDuplicates(rows, (r) => r.code, "code");
     const existing = await tx.department.findMany({
@@ -154,7 +172,7 @@ export async function saveDepartments(slug: string, input: unknown): Promise<Sav
 // ---------------------------------------------------------------- Buildings & rooms
 
 export async function saveBuildings(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(buildingRow, input);
     noDuplicates(rows, (r) => r.name, "building");
     const existing = await tx.building.findMany({ where: { institutionId } });
@@ -178,7 +196,7 @@ export async function saveBuildings(slug: string, input: unknown): Promise<SaveR
 }
 
 export async function saveRooms(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(roomRow, input);
     noDuplicates(rows, (r) => r.name, "room");
     const [existing, buildings, depts] = await Promise.all([
@@ -211,7 +229,7 @@ export async function saveRooms(slug: string, input: unknown): Promise<SaveResul
 // ---------------------------------------------------------------- Time grids
 
 export async function saveGrids(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(gridRow, input);
     if (!rows.length) throw new UserError("Keep at least one time grid.");
     noDuplicates(rows, (r) => r.name, "grid");
@@ -232,12 +250,13 @@ export async function saveGrids(slug: string, input: unknown): Promise<SaveResul
 // ---------------------------------------------------------------- Teachers
 
 export async function saveTeachers(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(teacherRow, input);
     noDuplicates(rows, (r) => r.name, "teacher");
+    if (scope && rows.some((r) => r.deptId !== scope)) throw new UserError("You can only change your own department's teachers.");
     const [existing, depts] = await Promise.all([
       tx.teacher.findMany({
-        where: { institutionId },
+        where: { institutionId, ...(scope ? { departmentId: scope } : {}) },
         include: { _count: { select: { offerings: true, labOfferings: true } } },
       }),
       tx.department.findMany({ where: { institutionId }, select: { id: true } }),
@@ -273,11 +292,15 @@ export async function saveTeachers(slug: string, input: unknown): Promise<SaveRe
 // ---------------------------------------------------------------- Programs & sections
 
 export async function savePrograms(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(programRow, input);
     noDuplicates(rows, (r) => r.name, "program");
+    if (scope && rows.some((r) => r.deptId !== scope)) throw new UserError("You can only change your own department's programs.");
     const [existing, depts] = await Promise.all([
-      tx.program.findMany({ where: { institutionId }, include: { _count: { select: { sections: true } } } }),
+      tx.program.findMany({
+        where: { institutionId, ...(scope ? { departmentId: scope } : {}) },
+        include: { _count: { select: { sections: true } } },
+      }),
       tx.department.findMany({ where: { institutionId }, select: { id: true } }),
     ]);
     checkIds(rows.map((r) => r.id), new Set(existing.map((p) => p.id)), "program");
@@ -300,12 +323,12 @@ export async function savePrograms(slug: string, input: unknown): Promise<SaveRe
 }
 
 export async function saveSections(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(sectionRow, input);
     noDuplicates(rows, (r) => r.name, "section");
     const [existing, programs, grids] = await Promise.all([
       tx.section.findMany({
-        where: { institutionId },
+        where: { institutionId, ...(scope ? { departmentId: scope } : {}) },
         include: { batches: { orderBy: { name: "asc" } }, _count: { select: { offerings: true, baskets: true } } },
       }),
       tx.program.findMany({ where: { institutionId } }),
@@ -313,6 +336,7 @@ export async function saveSections(slug: string, input: unknown): Promise<SaveRe
     ]);
     checkIds(rows.map((r) => r.id), new Set(existing.map((s) => s.id)), "section");
     const programDept = new Map(programs.map((p) => [p.id, p.departmentId]));
+    if (scope && rows.some((r) => programDept.get(r.programId) !== scope)) throw new UserError("You can only change your own department's sections.");
     const gIds = new Set(grids.map((g) => g.id));
     const keep = new Set(rows.map((r) => r.id));
     const removed = existing.filter((s) => !keep.has(s.id));
@@ -357,13 +381,24 @@ export async function saveSections(slug: string, input: unknown): Promise<SaveRe
 // ---------------------------------------------------------------- Subjects
 
 export async function saveSubjects(slug: string, input: unknown): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
+  return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(subjectRow, input);
     noDuplicates(rows, (r) => r.code, "subject code");
+    if (scope && rows.some((r) => r.deptId !== scope)) throw new UserError("You can only change your own department's subjects.");
     const [existing, depts] = await Promise.all([
-      tx.subject.findMany({ where: { institutionId }, include: { _count: { select: { offerings: true } } } }),
+      tx.subject.findMany({
+        where: { institutionId, ...(scope ? { departmentId: scope } : {}) },
+        include: { _count: { select: { offerings: true } } },
+      }),
       tx.department.findMany({ where: { institutionId }, select: { id: true } }),
     ]);
+    if (scope) {
+      // Subject codes are unique across the whole college.
+      const others = await tx.subject.findMany({ where: { institutionId, NOT: { departmentId: scope } }, select: { code: true } });
+      const taken = new Set(others.map((o) => o.code));
+      const clash = rows.find((r) => taken.has(r.code));
+      if (clash) throw new UserError(`Subject code ${clash.code} is already used by another department.`);
+    }
     checkIds(rows.map((r) => r.id), new Set(existing.map((s) => s.id)), "subject");
     const dIds = new Set(depts.map((d) => d.id));
     const keep = new Set(rows.map((r) => r.id));
@@ -385,17 +420,21 @@ export async function saveSubjects(slug: string, input: unknown): Promise<SaveRe
 // ---------------------------------------------------------------- Allocation (offerings + baskets)
 
 export async function saveAllocation(slug: string, input: { baskets: unknown; offerings: unknown }): Promise<SaveResult> {
-  return run(slug, async (institutionId, tx) => {
-    const baskets = parseRows(basketRow, input.baskets);
+  return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const offerings = parseRows(offeringRow, input.offerings);
-    noDuplicates(baskets, (b) => b.name, "basket");
     const [exO, exB, subjects, sections, teachers] = await Promise.all([
-      tx.offering.findMany({ where: { institutionId }, select: { id: true } }),
-      tx.electiveBasket.findMany({ where: { institutionId }, select: { id: true } }),
-      tx.subject.findMany({ where: { institutionId }, select: { id: true } }),
+      // An HOD allocates their own department's subjects (to any section).
+      tx.offering.findMany({ where: { institutionId, ...(scope ? { subject: { departmentId: scope } } : {}) }, select: { id: true } }),
+      tx.electiveBasket.findMany({ where: { institutionId }, select: { id: true, name: true, sections: { select: { id: true } } } }),
+      tx.subject.findMany({ where: { institutionId, ...(scope ? { departmentId: scope } : {}) }, select: { id: true } }),
       tx.section.findMany({ where: { institutionId }, select: { id: true } }),
       tx.teacher.findMany({ where: { institutionId }, select: { id: true } }),
     ]);
+    // Elective baskets span departments, so only admins change them; HOD saves keep them as they are.
+    const baskets = scope
+      ? exB.map((b) => ({ id: b.id, name: b.name, sectionIds: b.sections.map((x) => x.id) }))
+      : parseRows(basketRow, input.baskets);
+    noDuplicates(baskets, (b) => b.name, "basket");
     checkIds(offerings.map((o) => o.id), new Set(exO.map((x) => x.id)), "allocation row");
     checkIds(baskets.map((b) => b.id), new Set(exB.map((x) => x.id)), "basket");
     const subIds = new Set(subjects.map((s) => s.id));
@@ -425,7 +464,7 @@ export async function saveAllocation(slug: string, input: { baskets: unknown; of
     const rowErrors: Record<number, string> = {};
     offerings.forEach((o, i) => {
       if (o.basketId && !basketIds.has(o.basketId)) rowErrors[i] = "Its elective basket was removed; pick another or clear it.";
-      if (!subIds.has(o.subjectId)) rowErrors[i] = "Subject no longer exists.";
+      if (!subIds.has(o.subjectId)) rowErrors[i] = scope ? "You can only allocate your own department's subjects." : "Subject no longer exists.";
       if (o.sectionIds.some((s) => !secIds.has(s))) rowErrors[i] = "A section no longer exists.";
       if ([...o.teacherIds, ...o.labTeacherIds].some((t) => !tIds.has(t))) rowErrors[i] = "A teacher no longer exists.";
     });

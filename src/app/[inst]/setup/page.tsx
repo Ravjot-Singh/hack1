@@ -3,7 +3,8 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Circle } from "lucide-react";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { buttonVariants } from "@/components/ui/button";
-import { getInstitution } from "@/lib/inst";
+import { NoAccess } from "@/components/no-access";
+import { checkPage } from "@/lib/access";
 import { getSetup } from "@/lib/setup/load";
 import { STEPS, stepCounts } from "@/lib/setup/steps";
 
@@ -26,8 +27,9 @@ export default function SetupIndex({ params }: PageProps<"/[inst]/setup">) {
 
 async function Steps({ params }: Pick<PageProps<"/[inst]/setup">, "params">) {
   const { inst: slug } = await params;
-  const inst = await getInstitution(slug);
-  const counts = stepCounts(await getSetup(inst.id));
+  const access = await checkPage(slug, "setup.view");
+  if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}/setup`} />;
+  const counts = stepCounts(await getSetup(access.inst.id));
   const next = STEPS.find((s) => counts[s.slug] === 0) ?? STEPS[0];
   return (
     <div className="space-y-4">

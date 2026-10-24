@@ -1,17 +1,21 @@
 import { Suspense } from "react";
-import { PageSkeleton } from "@/components/page-skeleton";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { NoAccess } from "@/components/no-access";
+import { PageSkeleton } from "@/components/page-skeleton";
+import { StatusBadge } from "@/components/timetable/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { checkPage } from "@/lib/access";
 import { prisma } from "@/lib/db";
-import { getInstitution } from "@/lib/inst";
 
 async function TimetablesPageContent({ params }: Pick<PageProps<"/[inst]/timetables">, "params">) {
   const { inst: slug } = await params;
-  const inst = await getInstitution(slug);
+  const access = await checkPage(slug);
+  if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}/timetables`} />;
+  const drafts = access.can("timetable.viewDrafts");
   const versions = await prisma.timetableVersion.findMany({
-    where: { institutionId: inst.id },
+    // Teachers, students and other roles see published and archived timetables only.
+    where: { institutionId: access.inst.id, ...(drafts ? {} : { status: { in: ["PUBLISHED", "ARCHIVED"] } }) },
     orderBy: { createdAt: "desc" },
     select: { id: true, name: true, status: true, quality: true, stats: true, createdAt: true },
   });
@@ -21,14 +25,20 @@ async function TimetablesPageContent({ params }: Pick<PageProps<"/[inst]/timetab
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Timetables</h1>
-          <p className="text-muted-foreground">Every saved version, newest first. Each one was clash-checked by the server.</p>
+          <p className="text-muted-foreground">
+            {drafts
+              ? "Every saved version, newest first. Each one was clash-checked by the server."
+              : "The published timetable, and earlier ones that it replaced."}
+          </p>
         </div>
-        <Link href={`/${slug}/solve`} className={buttonVariants()}>
-          Generate new
-        </Link>
+        {access.can("timetable.generate") && (
+          <Link href={`/${slug}/solve`} className={buttonVariants()}>
+            Generate new
+          </Link>
+        )}
       </div>
       {versions.length === 0 ? (
-        <p className="text-muted-foreground">No timetables yet.</p>
+        <p className="text-muted-foreground">{drafts ? "No timetables yet." : "Nothing has been published yet."}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {versions.map((v) => {
@@ -39,7 +49,7 @@ async function TimetablesPageContent({ params }: Pick<PageProps<"/[inst]/timetab
                   <CardContent className="space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{v.name}</span>
-                      <Badge variant="secondary">{v.status.toLowerCase()}</Badge>
+                      <StatusBadge status={v.status} />
                     </div>
                     <div className="text-sm text-muted-foreground">
                       Quality {v.quality}/100 · {(stats.lessons ?? 0) - (stats.unscheduled ?? 0)}/{stats.lessons ?? 0} classes

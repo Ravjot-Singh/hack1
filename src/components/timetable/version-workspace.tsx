@@ -22,6 +22,10 @@ interface Props {
   pinned: string[];
   /** False for published versions and the read-only demo. */
   editable: boolean;
+  /** May create public share links. */
+  canShare: boolean;
+  /** This version is the currently published one. */
+  published: boolean;
   readOnlyReason?: string;
 }
 
@@ -31,7 +35,7 @@ interface State {
 }
 
 /** A saved timetable with optional manual editing: move/swap with live rule checks, pins, undo and re-solve. */
-export function VersionWorkspace({ slug, versionId, title, snapshot, assignment, pinned, editable, readOnlyReason }: Props) {
+export function VersionWorkspace({ slug, versionId, title, snapshot, assignment, pinned, editable, canShare, published, readOnlyReason }: Props) {
   const router = useRouter();
   const problem = useMemo(() => buildProblem(snapshot), [snapshot]);
   const initial = useMemo<State>(() => ({ assignment, pinned: new Set(pinned) }), [assignment, pinned]);
@@ -217,7 +221,7 @@ export function VersionWorkspace({ slug, versionId, title, snapshot, assignment,
         actions={(current) => (
           <>
             {/* Sharing publishes the saved version, so it's hidden while there are hand edits in progress. */}
-            {!editing && <ShareDialog slug={slug} versionId={versionId} current={current} />}
+            {!editing && canShare && <ShareDialog slug={slug} versionId={versionId} current={current} published={published} />}
             {actions}
           </>
         )}

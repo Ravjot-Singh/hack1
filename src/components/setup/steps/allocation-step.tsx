@@ -16,8 +16,14 @@ import { EditableTable, type Column } from "../editable-table";
 import { ImportDialog } from "../import-dialog";
 import type { StepProps } from "../step-view";
 
-export function AllocationStep({ slug, data, readOnly }: StepProps) {
+export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepProps) {
   const router = useRouter();
+  // HODs allocate only their own department's subjects (to any section).
+  const data = useMemo(() => {
+    if (!scope) return fullData;
+    const own = new Set(fullData.subjects.filter((s) => s.deptId === scope).map((s) => s.id));
+    return { ...fullData, subjects: fullData.subjects.filter((s) => own.has(s.id!)), offerings: fullData.offerings.filter((o) => own.has(o.subjectId)) };
+  }, [fullData, scope]);
   const lookups = lookupsOf(data);
   const [sectionId, setSectionId] = useState(data.sections[0]?.id ?? "");
   // Unsaved rows for the current section, so the load sidebar reflects edits live.
@@ -40,18 +46,19 @@ export function AllocationStep({ slug, data, readOnly }: StepProps) {
     };
   }, [data]);
 
-  // Live teacher loads using the real lesson expansion (L-T-P, batches, baskets).
+  // Live teacher loads across the whole college, using the real lesson expansion (L-T-P, batches, baskets).
   const loads = useMemo(() => {
-    const offerings = draft ? [...data.offerings.filter((o) => !inSection(o)), ...draft] : data.offerings;
+    const replaced = new Set(draft ? data.offerings.filter(inSection).map((o) => o.id) : []);
+    const offerings = draft ? [...fullData.offerings.filter((o) => !replaced.has(o.id)), ...draft] : fullData.offerings;
     try {
-      return teacherLoads(buildProblem(toInstituteInput({ ...data, offerings })))
+      return teacherLoads(buildProblem(toInstituteInput({ ...fullData, offerings })))
         .filter((t) => t.load > 0)
         .sort((a, b) => b.load / b.maxPerWeek - a.load / a.maxPerWeek);
     } catch {
       return [];
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, draft, sectionId]);
+  }, [fullData, data, draft, sectionId]);
 
   if (!data.sections.length || !data.subjects.length || !data.teachers.length) {
     return (
@@ -167,7 +174,11 @@ export function AllocationStep({ slug, data, readOnly }: StepProps) {
 
         <EditableTable
           title="Elective baskets"
-          description="Electives in a basket run at the same time, so each student of the basket's sections attends one of them. Create the basket here, then pick it on each elective's row."
+          description={
+            scope
+              ? "Electives in a basket run at the same time. Baskets span departments, so the Institute Admin manages them; you can pick one on your electives' rows."
+              : "Electives in a basket run at the same time, so each student of the basket's sections attends one of them. Create the basket here, then pick it on each elective's row."
+          }
           rows={data.baskets}
           columns={[
             { key: "name", label: "Basket", type: "text", placeholder: "Open Elective (3rd year)", className: "min-w-56" },
@@ -185,7 +196,7 @@ export function AllocationStep({ slug, data, readOnly }: StepProps) {
             });
             return saveAllocation(slug, { baskets, offerings });
           }}
-          readOnly={readOnly}
+          readOnly={readOnly || !!scope}
           emptyText="No elective baskets."
         />
       </div>

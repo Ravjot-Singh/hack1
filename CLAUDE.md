@@ -42,6 +42,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   ids belong to the institute, refuses the read-only `/demo`, and blocks deletes that would cascade.
 - `npm run samples` regenerates `public/samples/*.csv` from the demo college.
 - Every DB row carries `institutionId` (multi-college tenancy).
+- Auth is Better Auth (`src/lib/auth.ts`). Who may do what lives only in `src/lib/permissions.ts`;
+  pages call `checkPage(slug, action)` and server actions call `requireAction(slug, action)`
+  (`src/lib/access.ts`). HODs are scoped to their department on department-level setup saves.
+  The shared `/demo` is viewable by anyone and writable by no one.
 
 ## Conventions
 
