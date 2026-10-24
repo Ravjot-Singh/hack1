@@ -19,6 +19,7 @@ const GOAL_LABELS: Record<string, string> = {
   idleGaps: "Free periods between classes",
   subjectSpread: "Same subject twice a day",
   roomUtilization: "Rarely-used rooms",
+  customRules: "Custom 'avoid' rules broken",
 };
 
 export function SolvePanel({ slug, input, canSave }: { slug: string; input: InstituteInput; canSave: boolean }) {

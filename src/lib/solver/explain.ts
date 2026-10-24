@@ -1,4 +1,5 @@
-import type { Issue, Problem } from "./types";
+import { customRuleSlots } from "./custom-rules";
+import type { CustomRule, Issue, Problem } from "./types";
 
 /**
  * Feasibility pre-checks run before solving (and live while data is entered). They catch
@@ -160,6 +161,40 @@ export function precheck(problem: Problem): Issue[] {
         message: `${type}s are ${Math.round((100 * need) / supply)}% booked; solving may be slow or fail.`,
       });
     }
+  }
+
+  // Custom hard rules that leave a class no legal start at all (ignoring everything else).
+  const ruleSlots = customRuleSlots(problem);
+  const stuck = new Map<CustomRule, string[]>();
+  for (const l of lessons) {
+    const forbid = ruleSlots.get(l.id)?.forbid;
+    if (!forbid) continue;
+    const grid = (sid: string) => grids.get(sections.get(sid)?.gridId ?? "");
+    let blocker: CustomRule | null = null;
+    let possible = false;
+    for (let d = 0; d < D && !possible; d++) {
+      starts: for (let p = 0; p + l.duration <= P; p++) {
+        for (const sid of l.sectionIds) for (let k = p; k < p + l.duration; k++) if (!grid(sid)?.open[d]?.[k]) continue starts;
+        for (let k = p; k < p + l.duration; k++) {
+          const r = forbid.get(d * P + k);
+          if (r) {
+            blocker ??= r;
+            continue starts;
+          }
+        }
+        possible = true;
+        break;
+      }
+    }
+    if (!possible && blocker) stuck.set(blocker, [...(stuck.get(blocker) ?? []), l.label]);
+  }
+  for (const [r, labels] of stuck) {
+    issues.push({
+      severity: "error",
+      rule: "custom-rule",
+      message: `The rule "${r.summary}" leaves no time for ${labels.length} class${labels.length === 1 ? "" : "es"} (e.g. ${labels[0]}).`,
+      fix: "Narrow the rule or open more periods in the time grid.",
+    });
   }
 
   for (const o of input.offerings) {

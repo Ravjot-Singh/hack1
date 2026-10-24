@@ -23,6 +23,31 @@ export interface RuleSettings {
   /** "compact" packs classes into fewer rooms, "spread" uses rooms evenly. */
   roomUtilizationMode: "compact" | "spread";
   weights: SoftWeights;
+  /** Rules the admin typed in plain English, already resolved to ids and slots. */
+  custom?: CustomRule[];
+}
+
+/**
+ * "Lessons matching `target` must not (hard) / should not (soft) be in `slots`."
+ * Target filters combine: (any of teachers/sections/years, or everyone when all three are empty)
+ * AND (kind in kinds, if any) AND (subject in subjects, if any).
+ */
+export interface CustomRule {
+  id: string;
+  /** What the admin typed. */
+  text: string;
+  /** Plain description generated from the structured rule (what the admin confirmed). */
+  summary: string;
+  strength: "hard" | "soft";
+  target: {
+    teacherIds: string[];
+    sectionIds: string[];
+    years: number[];
+    kinds: LessonKind[];
+    subjectIds: string[];
+  };
+  /** [day, period] pairs. */
+  slots: [number, number][];
 }
 
 export interface DepartmentInput {
@@ -221,7 +246,8 @@ export interface Issue {
 
 export interface ScoreBreakdown {
   quality: number; // 0..100
-  penalties: Record<keyof SoftWeights, number>;
+  /** customRules: periods placed in slots an "avoid" custom rule names (only when such rules exist). */
+  penalties: Record<keyof SoftWeights, number> & { customRules?: number };
 }
 
 export interface SolveProgress {

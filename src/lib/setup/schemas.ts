@@ -130,6 +130,25 @@ export const ruleSettings = z.object({
     subjectSpread: z.number().int().min(0).max(3),
     roomUtilization: z.number().int().min(0).max(3),
   }),
+  custom: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        text: z.string().max(300),
+        summary: z.string().max(500),
+        strength: z.enum(["hard", "soft"]),
+        target: z.object({
+          teacherIds: z.array(z.string()),
+          sectionIds: z.array(z.string()),
+          years: z.array(z.number().int()),
+          kinds: z.array(z.enum(["L", "T", "P", "H"])),
+          subjectIds: z.array(z.string()),
+        }),
+        slots: z.array(z.tuple([z.number().int().min(0), z.number().int().min(0)])),
+      }),
+    )
+    .max(100)
+    .default([]),
 });
 
 export type DepartmentRow = z.input<typeof departmentRow>;

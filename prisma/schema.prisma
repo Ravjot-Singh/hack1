@@ -59,6 +59,7 @@ model Institution {
   absences    Absence[]
   covers      Cover[]
   notifications Notification[]
+  aiCalls       AiCall[]
 }
 
 model Department {
@@ -476,4 +477,27 @@ model Notification {
   readAt        DateTime?
 
   @@index([userId, readAt])
+}
+
+// ---------------------------------------------------------------- Plain-English rules
+
+/// One request to the AI fallback that reads plain-English rules. Doubles as the cache:
+/// the same sentence in the same college is answered from here without a new call.
+model AiCall {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  provider      String
+  model         String
+  /// The sentence, lower-cased with whitespace collapsed (the cache key).
+  input         String
+  /// Names-based answer from the model; null when the call failed.
+  output        Json?
+  error         String?
+  inputTokens   Int?
+  outputTokens  Int?
+  userId        String?
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId, input])
 }

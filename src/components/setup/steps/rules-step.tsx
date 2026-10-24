@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Save } from "lucide-react";
 import { saveRules } from "@/app/[inst]/setup/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { SoftWeights } from "@/lib/solver/types";
+import { toInstituteInput } from "@/lib/setup/convert";
+import type { RuleSettings, SoftWeights } from "@/lib/solver/types";
 import { cn } from "@/lib/utils";
 import type { StepProps } from "../step-view";
+import { CustomRules } from "./custom-rules";
 
 const GOALS: { key: keyof SoftWeights; label: string; help: string }[] = [
   { key: "teacherPrefs", label: "Teacher preferences", help: "Use slots teachers prefer; avoid their 'rather not' slots." },
@@ -20,11 +22,19 @@ const GOALS: { key: keyof SoftWeights; label: string; help: string }[] = [
 ];
 const LEVELS = ["Off", "Low", "Med", "High"];
 
-export function RulesStep({ slug, data, readOnly }: StepProps) {
+export function RulesStep({ slug, data, readOnly, ai }: StepProps) {
   const router = useRouter();
   const [r, setR] = useState(data.rules);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
+  const input = useMemo(() => toInstituteInput(data), [data]);
+  const commit = async (next: RuleSettings) => {
+    const res = await saveRules(slug, next);
+    if (!res.ok) return res.error;
+    setR(next);
+    router.refresh();
+    return null;
+  };
   const set = (patch: Partial<typeof r>) => {
     setR((x) => ({ ...x, ...patch }));
     setMsg(null);
@@ -88,6 +98,8 @@ export function RulesStep({ slug, data, readOnly }: StepProps) {
           </span>
         </label>
       </section>
+
+      <CustomRules slug={slug} input={input} rules={r} readOnly={readOnly} ai={ai} commit={commit} />
 
       <section className="space-y-4">
         <div>

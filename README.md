@@ -66,6 +66,14 @@ Day to day:
 - **Room use**: a heatmap of every room across the week (busy, free, closed), with average
   use, rooms under 30%, never-used rooms and the busiest slot; filter by building, type or
   owner, or switch to a table.
+- **Rules in your own words** (Setup → Rules): type "Dr. Rao is not available on Friday
+  afternoons", "No labs on Saturday", "First years only have classes in the morning" or "Max 3
+  classes in a row for teachers". A built-in reader understands teachers, sections, years,
+  subjects, departments, labs/lectures, days, periods, clock times and morning/after lunch, for
+  free. Only when it can't does the admin get an **Ask Claude** (or **Ask Grok**) button. The
+  admin always confirms a summary generated from the structured rule (not written by the AI),
+  can switch it between "must" and "try to", and is warned if it would leave a class no time.
+  Hard rules are enforced by the solver and the validator; "try to" rules lower the score.
 
 ### Roles
 
@@ -109,6 +117,13 @@ For local testing of roles, `npx tsx scripts/seed-dev-users.ts <college-slug>` c
 account per role (admin, HOI, CSE HOD, teacher, student) in that college; the shared dev
 password is in the script. Never run it against production.
 
+Optional AI fallback for plain-English rules: set `LLM_PROVIDER` (`anthropic` or `xai`) and
+`ANTHROPIC_API_KEY` or `XAI_API_KEY` (see `.env.example`). Without a key the built-in reader
+still works. Each AI call is logged in the `AiCall` table, which is also the cache: the same
+sentence is never sent twice, and calls are capped at 30 per college per day. Claude runs at
+low effort with Anthropic's server-side refusal fallback enabled; `ANTHROPIC_MODEL` can be set
+to a cheaper model such as `claude-haiku-5-5`.
+
 Tests and checks:
 
 ```bash
@@ -138,6 +153,8 @@ src/lib/solver/      Pure TypeScript solver (no DB or framework imports)
   validate.ts        Independent hard-rule checker (used by tests, server save, version view)
   explain.ts         Feasibility pre-checks with fixes
   score.ts           Soft-goal penalties -> 0-100 quality
+  custom-rules.ts    Plain-English rules resolved to forbidden / avoided slots per lesson
+src/lib/rules/       Plain-English rules: built-in parser, summaries, AI prompt + name resolution, Claude/Grok calls
 src/lib/setup/       Setup wizard logic: row schemas (zod), CSV/Excel import + export, conversions
 src/components/setup/ Editable table, import dialog, slot matrix, wizard steps
 src/workers/         Web Worker wrapper with progress messages
@@ -151,6 +168,5 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 
 ## Roadmap
 
-The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: plain-English
-rules via Claude, venue booking,
+The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: venue booking,
 teacher appointments and placement drives.

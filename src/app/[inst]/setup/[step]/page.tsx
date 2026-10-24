@@ -4,6 +4,8 @@ import { NoAccess } from "@/components/no-access";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { StepView } from "@/components/setup/step-view";
 import { checkPage } from "@/lib/access";
+import { prisma } from "@/lib/db";
+import { aiProvider } from "@/lib/rules/ai";
 import { getSetup } from "@/lib/setup/load";
 import { DEPARTMENT_STEPS, isStep } from "@/lib/setup/steps";
 
@@ -32,5 +34,7 @@ async function Step({ params }: Pick<PageProps<"/[inst]/setup/[step]">, "params"
       : scope && departmentStep
         ? `You're editing ${data.departments.find((d) => d.id === scope)?.name ?? "your department"} only.`
         : null;
-  return <StepView step={step} slug={slug} data={data} readOnly={readOnly} scope={scope} note={note} />;
+  const provider = step === "rules" && !readOnly ? aiProvider() : null;
+  const ai = provider && { label: provider.label, model: provider.model, calls: await prisma.aiCall.count({ where: { institutionId: access.inst.id } }) };
+  return <StepView step={step} slug={slug} data={data} readOnly={readOnly} scope={scope} note={note} ai={ai} />;
 }

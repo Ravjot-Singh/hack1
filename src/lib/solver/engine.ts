@@ -1,5 +1,6 @@
+import { customRuleSlots } from "./custom-rules";
 import { travelMinutes, walkAllowance } from "./time";
-import type { Assignment, Problem } from "./types";
+import type { Assignment, CustomRule, Problem } from "./types";
 
 /** Small seeded PRNG so solves are reproducible. */
 export function mulberry32(seed: number) {
@@ -12,6 +13,9 @@ export function mulberry32(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/** Soft cost per period of a lesson sitting in a slot a custom "avoid" rule names. */
+export const AVOID_COST = 8;
 
 /**
  * Compiled, index-based view of a Problem plus the mutable placement state.
@@ -36,6 +40,12 @@ export class Engine {
   readonly uTeachers: number[][];
   readonly uAtoms: number[][];
   readonly uStarts: number[][];
+  /** uStartOk[u][slot] = 1 when `slot` is in uStarts[u]. */
+  readonly uStartOk: Uint8Array[];
+  /** Per unit: slot -> custom hard rule forbidding it (any lesson of the unit, any period covered). */
+  readonly uForbid: (Map<number, CustomRule> | null)[];
+  /** Per unit: slot -> number of soft custom rules asking to avoid it. */
+  readonly uAvoid: (Map<number, number> | null)[];
   readonly uPinned: ({ slot: number; rooms: number[] } | null)[];
   // Static, per entity
   readonly teacherMaxDay: number[];
@@ -121,6 +131,18 @@ export class Engine {
     this.uTeachers = this.uLessons.map((ls) => [...new Set(ls.flatMap((l) => this.lTeachers[l]))]);
     this.uAtoms = this.uLessons.map((ls) => [...new Set(ls.flatMap((l) => this.lAtoms[l]))]);
 
+    const ruleSlots = customRuleSlots(problem);
+    this.uForbid = this.uLessons.map((ls) => {
+      const m = new Map<number, CustomRule>();
+      for (const l of ls) for (const [s, r] of ruleSlots.get(lessons[l].id)?.forbid ?? []) if (!m.has(s)) m.set(s, r);
+      return m.size ? m : null;
+    });
+    this.uAvoid = this.uLessons.map((ls) => {
+      const m = new Map<number, number>();
+      for (const l of ls) for (const [s, n] of ruleSlots.get(lessons[l].id)?.avoid ?? []) m.set(s, (m.get(s) ?? 0) + n);
+      return m.size ? m : null;
+    });
+
     const sections = new Map(input.sections.map((s) => [s.id, s]));
     const grids = new Map(input.grids.map((g) => [g.id, g]));
     this.uStarts = units.map((u, ui) => {
@@ -143,10 +165,16 @@ export class Engine {
             const un = input.teachers[t].unavailable;
             if (un.some(([ud, up]) => ud === d && up >= p && up < p + dur)) continue outer;
           }
+          if (this.ruleAt(ui, d * P + p, dur)) continue outer;
           starts.push(d * P + p);
         }
       }
       return starts;
+    });
+    this.uStartOk = this.uStarts.map((starts) => {
+      const ok = new Uint8Array(S);
+      for (const s of starts) ok[s] = 1;
+      return ok;
     });
 
     const roomIdx = new Map(this.roomIds.map((id, i) => [id, i]));
@@ -170,6 +198,17 @@ export class Engine {
     this.spreadDay = new Int32Array(Math.max(1, spreadKeys.size) * D);
     this.unitStart = new Int32Array(units.length).fill(-1);
     this.lessonRoom = new Int32Array(lessons.length).fill(-1);
+  }
+
+  /** The custom hard rule that forbids unit `u` in [slot, slot + dur), if any. */
+  ruleAt(u: number, slot: number, dur = this.uDur[u]): CustomRule | null {
+    const f = this.uForbid[u];
+    if (!f) return null;
+    for (let k = 0; k < dur; k++) {
+      const r = f.get(slot + k);
+      if (r) return r;
+    }
+    return null;
   }
 
   /** Length of the busy run through [p, p + dur) on day d if it were filled. */
@@ -218,6 +257,8 @@ export class Engine {
     const dur = this.uDur[u];
     const d = Math.floor(slot / this.P);
     const p = slot % this.P;
+    // Grid, availability and custom rules are static: only precomputed starts are legal.
+    if (!this.uStartOk[u][slot]) return null;
     for (const t of this.uTeachers[u]) {
       const occ = this.teacherOcc[t];
       for (let k = 0; k < dur; k++) if (occ[slot + k]) return null;
@@ -374,6 +415,8 @@ export class Engine {
       c += (w.balancedDays * 0.5 * bal + w.idleGaps * gap) / atoms.length;
     }
     if (w.balancedDays) for (const t of this.uTeachers[u]) c += 0.3 * w.balancedDays * this.teacherDay[t * this.D + d];
+    const avoid = this.uAvoid[u];
+    if (avoid) for (let k = 0; k < dur; k++) c += AVOID_COST * (avoid.get(slot + k) ?? 0);
     return c + 0.02 * p;
   }
 
@@ -467,6 +510,8 @@ export class Engine {
     const dur = this.uDur[u];
     const d = Math.floor(slot / this.P);
     const p = slot % this.P;
+    const rule = this.ruleAt(u, slot);
+    if (rule) return `rule: ${rule.summary}`;
     for (const t of this.uTeachers[u]) {
       const name = input.teachers[t].name;
       if (input.teachers[t].unavailable.some(([ud, up]) => ud === d && up >= p && up < p + dur)) return `${name} is unavailable`;

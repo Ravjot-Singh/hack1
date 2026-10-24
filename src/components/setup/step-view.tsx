@@ -18,6 +18,8 @@ export interface StepProps {
   readOnly: boolean;
   /** HOD's department: department steps show and edit only its rows. */
   scope: string | null;
+  /** Rules step: the configured AI fallback and how often it has been called. */
+  ai?: { label: string; model: string; calls: number } | null;
 }
 
 const VIEWS: Record<StepSlug, (p: StepProps) => React.ReactNode> = {

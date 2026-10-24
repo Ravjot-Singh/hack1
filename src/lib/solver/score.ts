@@ -1,4 +1,8 @@
+import { customRuleSlots } from "./custom-rules";
 import type { Assignment, Problem, ScoreBreakdown, SoftWeights } from "./types";
+
+/** Weight of one period in an "avoid" custom-rule slot, on the same scale as a High soft goal. */
+const CUSTOM_AVOID_WEIGHT = 3;
 
 /**
  * Soft-goal penalties for a (complete or partial) timetable. Raw counts per goal, then a
@@ -72,9 +76,24 @@ export function score(problem: Problem, assignment: Assignment): ScoreBreakdown 
   }
 
   for (const k of Object.keys(penalties) as (keyof SoftWeights)[]) penalties[k] = Math.round(penalties[k] * 10) / 10;
-  const weighted = (Object.keys(penalties) as (keyof SoftWeights)[]).reduce((s, k) => s + penalties[k] * w[k], 0);
+  let weighted = (Object.keys(penalties) as (keyof SoftWeights)[]).reduce((s, k) => s + penalties[k] * w[k], 0);
+
+  const soft = (input.rules.custom ?? []).some((r) => r.strength === "soft");
+  const out: ScoreBreakdown["penalties"] = penalties;
+  if (soft) {
+    const rs = customRuleSlots(problem);
+    let hits = 0;
+    for (const l of lessons) {
+      const a = assignment[l.id];
+      const avoid = a && rs.get(l.id)?.avoid;
+      if (!avoid) continue;
+      for (let k = 0; k < l.duration; k++) hits += avoid.get(a.day * P + a.period + k) ?? 0;
+    }
+    out.customRules = hits;
+    weighted += hits * CUSTOM_AVOID_WEIGHT;
+  }
   // Normalised per student-group-day: ~2 weighted penalty points per group per day halves the score.
   const groupDays = Math.max(1, atomLine.size * D);
   const quality = Math.round(100 / (1 + weighted / (groupDays * 2)));
-  return { quality, penalties };
+  return { quality, penalties: out };
 }

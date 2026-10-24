@@ -5,6 +5,11 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { AccessError, requireAction } from "@/lib/access";
+import { aiProvider, interpretWithAi } from "@/lib/rules/ai";
+import { cacheKey, resolveAiRule, type AiRule } from "@/lib/rules/ai-spec";
+import type { RuleDraft } from "@/lib/rules/draft";
+import { toInstituteInput } from "@/lib/setup/convert";
+import { loadSetup } from "@/lib/setup/load";
 import {
   basketRow,
   buildingRow,
@@ -497,4 +502,69 @@ export async function saveAllocation(slug: string, input: { baskets: unknown; of
       }
     }
   });
+}
+
+// ---------------------------------------------------------------- Plain-English rules (AI fallback)
+
+/** Guard rail on the API key: calls per college per 24 hours. */
+const AI_DAILY_LIMIT = 30;
+
+export type InterpretResult =
+  | { ok: true; draft: RuleDraft; source: string; cached: boolean; calls: number }
+  | { ok: false; error: string; calls?: number };
+
+/**
+ * Reads a rule the built-in parser couldn't, using the configured AI provider. The same
+ * sentence is answered from the AiCall log instead of calling again. Nothing is saved here:
+ * the admin confirms the code-generated summary first.
+ */
+export async function interpretRuleWithAi(slug: string, text: string): Promise<InterpretResult> {
+  let institutionId: string;
+  let userId: string | null;
+  try {
+    const access = await requireAction(slug, "setup.institute");
+    institutionId = access.inst.id;
+    userId = access.user?.id ?? null;
+  } catch (e) {
+    if (e instanceof AccessError) return { ok: false, error: e.message };
+    throw e;
+  }
+  const sentence = text.trim();
+  if (sentence.length < 5 || sentence.length > 300) return { ok: false, error: "Write the rule as one sentence (5–300 characters)." };
+  const provider = aiProvider();
+  if (!provider) return { ok: false, error: "No AI key is set up. Add ANTHROPIC_API_KEY or XAI_API_KEY to the server's environment." };
+
+  const ctx = toInstituteInput(await loadSetup(institutionId));
+  const input = cacheKey(sentence);
+  const calls = () => prisma.aiCall.count({ where: { institutionId } });
+
+  const cached = await prisma.aiCall.findFirst({
+    where: { institutionId, input, provider: provider.id, error: null },
+    orderBy: { createdAt: "desc" },
+  });
+  if (cached?.output) {
+    const r = resolveAiRule(cached.output as unknown as AiRule, ctx);
+    return r.ok ? { ok: true, draft: r.draft, source: provider.label, cached: true, calls: await calls() } : { ok: false, error: r.reason, calls: await calls() };
+  }
+
+  const recent = await prisma.aiCall.count({ where: { institutionId, createdAt: { gte: new Date(Date.now() - 86_400_000) } } });
+  if (recent >= AI_DAILY_LIMIT) return { ok: false, error: `The AI has been used ${recent} times in the last 24 hours (limit ${AI_DAILY_LIMIT}). Try again tomorrow or rephrase for the built-in reader.` };
+
+  const res = await interpretWithAi(provider, sentence, ctx);
+  await prisma.aiCall.create({
+    data: {
+      institutionId,
+      userId,
+      provider: provider.id,
+      model: provider.model,
+      input,
+      output: res.ok ? (res.rule as unknown as Prisma.InputJsonValue) : undefined,
+      error: res.ok ? null : res.error,
+      inputTokens: res.ok ? res.inputTokens : null,
+      outputTokens: res.ok ? res.outputTokens : null,
+    },
+  });
+  if (!res.ok) return { ok: false, error: res.error, calls: await calls() };
+  const r = resolveAiRule(res.rule, ctx);
+  return r.ok ? { ok: true, draft: r.draft, source: provider.label, cached: false, calls: await calls() } : { ok: false, error: r.reason, calls: await calls() };
 }

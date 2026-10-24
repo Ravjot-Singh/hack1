@@ -17,6 +17,7 @@
     "samples": "tsx scripts/export-demo-csv.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@base-ui/react": "^1.9.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",

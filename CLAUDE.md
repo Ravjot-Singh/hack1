@@ -34,6 +34,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `construct.ts` places lessons most-constrained-first, with backtracking and restarts.
   - `validate.ts` is the independent hard-constraint checker. Nothing is saved unless it reports 0 violations.
   - `explain.ts` contains the feasibility pre-checks and the reasons an unplaced lesson was blocked.
+  - `custom-rules.ts` applies admin-typed rules (`RuleSettings.custom`): hard ones remove start slots in the
+    engine and are checked by the validator, soft ones add cost and a score penalty.
+- `src/lib/rules/` reads plain-English rules. `parse.ts` is a deterministic parser that refuses rather than
+  guesses (any unknown word fails). `ai.ts` is the optional fallback (`LLM_PROVIDER` = anthropic | xai); the
+  model returns names only and `ai-spec.ts` resolves them to ids. The summary the admin confirms is generated
+  by `draft.ts` from the structured rule. AI calls are cached and logged in `AiCall`.
 - Student clashes use **atoms**: each batch (or a section with no batches) is an atom. A section lesson
   occupies all its atoms, and a batch lesson occupies one.
 - `src/lib/setup/` is the setup wizard's pure logic: zod row schemas (`schemas.ts`), CSV/Excel import mapping,

@@ -23,6 +23,7 @@ export function stepForIssue(rule: string): StepSlug {
   if (rule.startsWith("teacher") || rule.startsWith("basket") || rule === "no-teacher" || rule === "section-capacity") return "allocation";
   if (rule.startsWith("room")) return "rooms";
   if (rule === "block-length") return "subjects";
+  if (rule === "custom-rule") return "rules";
   return "review";
 }
 

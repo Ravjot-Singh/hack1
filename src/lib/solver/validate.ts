@@ -1,3 +1,4 @@
+import { ruleMatches } from "./custom-rules";
 import { travelMinutes, walkAllowance } from "./time";
 import type { Assignment, Lesson, Problem, Violation } from "./types";
 
@@ -16,6 +17,8 @@ export function validate(problem: Problem, assignment: Assignment): { violations
   const sections = new Map(input.sections.map((s) => [s.id, s]));
   const grids = new Map(input.grids.map((g) => [g.id, g]));
   const byId = new Map(lessons.map((l) => [l.id, l]));
+  const sectionYear = new Map(input.sections.map((s) => [s.id, s.year]));
+  const hardRules = (input.rules.custom ?? []).filter((r) => r.strength === "hard");
   const unitSize = new Map<string, number>();
   for (const l of lessons) unitSize.set(l.unitId, (unitSize.get(l.unitId) ?? 0) + 1);
 
@@ -63,6 +66,11 @@ export function validate(problem: Problem, assignment: Assignment): { violations
           add("teacher-unavailable", `${where}: ${t.name} is unavailable then.`, l.id);
         }
       }
+    }
+    for (const r of hardRules) {
+      if (!ruleMatches(r, l, sectionYear)) continue;
+      const hit = r.slots.some(([d, p]) => d === a.day && p >= a.period && p < a.period + l.duration);
+      if (hit) add("custom-rule", `${where} breaks the rule "${r.summary}".`, l.id);
     }
     for (let p = a.period; p < a.period + l.duration; p++) {
       for (const tid of l.teacherIds) mark(`t|${tid}|${a.day}|${p}`, l);
