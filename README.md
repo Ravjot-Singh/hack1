@@ -66,6 +66,13 @@ Day to day:
 - **Room use**: a heatmap of every room across the week (busy, free, closed), with average
   use, rooms under 30%, never-used rooms and the busiest slot; filter by building, type or
   owner, or switch to a table.
+- **Venues**: book a seminar hall any time, or any room while it has no class, from a rooms ×
+  periods grid of the chosen date (published timetable after the calendar and cancellations).
+  Requests go to the HOD for department rooms and to the Venue Manager for common rooms and
+  halls (the admin stands in if there is none); approvers booking their own rooms are approved
+  at once. Overlaps resolve by priority (Institute > Placement > Department > Club): the losing
+  request is declined or bumped and its requester is notified with free rooms that fit. Only
+  the Head of Institute can book over classes. Approved events show on Today.
 - **Rules in your own words** (Setup → Rules): type "Dr. Rao is not available on Friday
   afternoons", "No labs on Saturday", "First years only have classes in the morning" or "Max 3
   classes in a row for teachers". A built-in reader understands teachers, sections, years,
@@ -158,6 +165,7 @@ src/lib/rules/       Plain-English rules: built-in parser, summaries, AI prompt 
 src/lib/setup/       Setup wizard logic: row schemas (zod), CSV/Excel import + export, conversions
 src/components/setup/ Editable table, import dialog, slot matrix, wizard steps
 src/workers/         Web Worker wrapper with progress messages
+src/lib/venues.ts    Venue booking rules: class use per date, conflicts, priorities, approvers, alternatives
 src/lib/permissions.ts Role -> action matrix (pure, unit-tested); src/lib/access.ts applies it per request
 src/lib/auth.ts      Better Auth (email + password, optional Google), sessions in Postgres
 src/lib/institute.ts DB <-> solver mapping (Prisma 7 + Postgres)
@@ -168,5 +176,5 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 
 ## Roadmap
 
-The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: venue booking,
-teacher appointments and placement drives.
+The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next:
+teacher appointments, placement drives, elective registration and lab downtime.

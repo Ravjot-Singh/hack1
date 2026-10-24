@@ -60,6 +60,7 @@ model Institution {
   covers      Cover[]
   notifications Notification[]
   aiCalls       AiCall[]
+  bookings      VenueBooking[]
 }
 
 model Department {
@@ -103,6 +104,7 @@ model Room {
   ownerDeptId   String?
   ownerDept     Department? @relation(fields: [ownerDeptId], references: [id], onDelete: SetNull)
   isEventVenue  Boolean     @default(false)
+  bookings      VenueBooking[]
 }
 
 model TimeGrid {
@@ -500,4 +502,48 @@ model AiCall {
   createdAt     DateTime    @default(now())
 
   @@index([institutionId, input])
+}
+
+// ---------------------------------------------------------------- Venue booking
+
+enum BookingPriority {
+  INSTITUTE
+  PLACEMENT
+  DEPARTMENT
+  CLUB
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// A request to use a room on one date for a run of periods (event venues any time,
+/// other rooms only when free of classes unless the Head of Institute overrides).
+model VenueBooking {
+  id            String          @id @default(cuid())
+  institutionId String
+  institution   Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  roomId        String
+  room          Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  date          DateTime        @db.Date
+  /// 0-based periods, inclusive.
+  startPeriod   Int
+  endPeriod     Int
+  title         String
+  attendees     Int
+  priority      BookingPriority
+  status        BookingStatus   @default(PENDING)
+  /// Booked over classes with the Head of Institute's override.
+  classOverride Boolean         @default(false)
+  requestedBy   String
+  decidedBy     String?
+  decidedAt     DateTime?
+  note          String?
+  createdAt     DateTime        @default(now())
+
+  @@index([institutionId, date])
+  @@index([institutionId, status])
 }

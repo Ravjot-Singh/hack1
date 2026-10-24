@@ -28,8 +28,8 @@ export const ROLE_HELP: Record<Role, string> = {
   HOD: "Edits their department's teachers, subjects, sections and allocation; signs off timetables.",
   TEACHER: "Sees their own timetable and the college's published timetables.",
   STUDENT: "Sees their section's published timetable.",
-  PLACEMENT_OFFICER: "Sees published timetables (placement drives come later).",
-  VENUE_MANAGER: "Sees published timetables and room schedules (venue booking comes later).",
+  PLACEMENT_OFFICER: "Books venues at placement priority (placement drives come later).",
+  VENUE_MANAGER: "Approves bookings of common rooms, seminar halls and auditoriums.",
   LAB_ASSISTANT: "Sees published timetables and lab schedules.",
 };
 
@@ -53,7 +53,9 @@ export type Action =
   /** Mark teachers absent and arrange substitutes (HOD: own department). */
   | "absence.manage"
   /** Report yourself absent. */
-  | "absence.self";
+  | "absence.self"
+  /** Ask for a room or venue. Who approves depends on the room (see lib/venues.ts). */
+  | "venue.request";
 
 export interface Member {
   role: Role;
@@ -77,6 +79,7 @@ const GRANTS: Record<Action, Role[]> = {
   "calendar.manage": ["INSTITUTE_ADMIN"],
   "absence.manage": ["INSTITUTE_ADMIN", "HOD"],
   "absence.self": ["TEACHER", "HOD"],
+  "venue.request": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "PLACEMENT_OFFICER", "VENUE_MANAGER"],
 };
 
 export interface PermissionContext {

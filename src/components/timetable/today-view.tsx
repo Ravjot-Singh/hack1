@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarOff, ChevronLeft, ChevronRight, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addDays, resolveDay, todayIso, type CalendarInfo } from "@/lib/calendar";
 import { buildProblem } from "@/lib/solver";
@@ -19,10 +19,20 @@ interface Props {
   versionName: string;
   /** Substitutions/cancellations for upcoming dates, keyed by "YYYY-MM-DD". */
   covers: Record<string, DayCover[]>;
+  /** Approved room bookings for nearby dates, keyed by "YYYY-MM-DD". */
+  events?: Record<string, DayEvent[]>;
+}
+
+export interface DayEvent {
+  id: string;
+  title: string;
+  room: string;
+  when: string;
+  attendees: number;
 }
 
 /** One date's classes: the published weekly timetable resolved through the academic calendar. */
-export function TodayView({ snapshot, assignment, calendar, fixed, versionName, covers }: Props) {
+export function TodayView({ snapshot, assignment, calendar, fixed, versionName, covers, events = {} }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -104,6 +114,24 @@ export function TodayView({ snapshot, assignment, calendar, fixed, versionName, 
         </div>
       ) : (
         <DayList problem={problem} assignment={assignment} view={view} entityId={entityId} onlyDay={plan.dayIndex} covers={covers[date] ?? []} />
+      )}
+
+      {(events[date]?.length ?? 0) > 0 && (
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-2 font-semibold">
+            <Presentation className="size-4" /> Events
+          </h3>
+          <ul className="divide-y rounded-lg border">
+            {events[date].map((e) => (
+              <li key={e.id} className="flex flex-wrap gap-x-3 px-3 py-2 text-sm">
+                <span className="font-medium">{e.title}</span>
+                <span className="text-muted-foreground">
+                  {e.room} · {e.when} · {e.attendees} people
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );
