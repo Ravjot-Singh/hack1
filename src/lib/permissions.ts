@@ -27,7 +27,7 @@ export const ROLE_HELP: Record<Role, string> = {
   HEAD_OF_INSTITUTE: "Reviews timetables and publishes them.",
   HOD: "Edits their department's teachers, subjects, sections and allocation; signs off timetables.",
   TEACHER: "Sees their own timetable, reports absence, books rooms and offers office hours.",
-  STUDENT: "Sees their section's published timetable and books teachers' office hours.",
+  STUDENT: "Sees their section's timetable, books office hours and registers for electives.",
   PLACEMENT_OFFICER: "Runs placement drives: rounds, venues (at placement priority) and who takes part.",
   VENUE_MANAGER: "Approves bookings of common rooms, seminar halls and auditoriums.",
   LAB_ASSISTANT: "Sees published timetables and lab schedules.",
@@ -63,7 +63,11 @@ export type Action =
   /** Create and edit placement drives. */
   | "placement.manage"
   /** See placement drives (students: only those their section takes part in). */
-  | "placement.view";
+  | "placement.view"
+  /** Open elective registration and apply the counts (HOD: baskets of their own department). */
+  | "electives.configure"
+  /** Choose an elective while registration is open. */
+  | "electives.register";
 
 export interface Member {
   role: Role;
@@ -90,6 +94,8 @@ const GRANTS: Record<Action, Role[]> = {
   "appointments.host": ["TEACHER", "HOD"],
   "appointments.book": ["STUDENT"],
   "placement.manage": ["PLACEMENT_OFFICER"],
+  "electives.configure": ["INSTITUTE_ADMIN", "HOD"],
+  "electives.register": ["STUDENT"],
   "placement.view": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "STUDENT", "PLACEMENT_OFFICER"],
   "venue.request": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "PLACEMENT_OFFICER", "VENUE_MANAGER"],
 };

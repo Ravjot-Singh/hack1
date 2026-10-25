@@ -64,6 +64,8 @@ model Institution {
   officeHours   OfficeHours[]
   appointments  Appointment[]
   drives        PlacementDrive[]
+  electiveWindows ElectiveWindow[]
+  electiveChoices ElectiveChoice[]
 }
 
 model Department {
@@ -206,6 +208,8 @@ model ElectiveBasket {
   name          String
   sections      Section[]
   offerings     Offering[]
+  window        ElectiveWindow?
+  choices       ElectiveChoice[]
 }
 
 model Offering {
@@ -630,4 +634,41 @@ model PlacementRound {
   bookingId   String?
 
   @@index([driveId])
+}
+
+// ---------------------------------------------------------------- Elective registration
+
+/// When students of a basket's sections may choose their elective, and seats per elective.
+model ElectiveWindow {
+  id            String         @id @default(cuid())
+  institutionId String
+  institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  basketId      String         @unique
+  basket        ElectiveBasket @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  opensOn       DateTime       @db.Date
+  closesOn      DateTime       @db.Date
+  /// { offeringId: seat limit }
+  seats         Json           @default("{}")
+  /// When the counts were last copied into the electives' class sizes.
+  appliedAt     DateTime?
+  createdBy     String
+  updatedAt     DateTime       @updatedAt
+}
+
+/// One student's elective in a basket (one per basket).
+model ElectiveChoice {
+  id            String         @id @default(cuid())
+  institutionId String
+  institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  basketId      String
+  basket        ElectiveBasket @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  offeringId    String
+  /// The student's user id.
+  studentId     String
+  sectionId     String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([basketId, studentId])
+  @@index([basketId, offeringId])
 }

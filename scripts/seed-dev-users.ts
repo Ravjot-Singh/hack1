@@ -22,6 +22,7 @@ async function main() {
     { email: "hod.cse@dev.test", name: "Rajesh Kumar", role: "HOD" as const, departmentId: dept("CSE"), teacherId: teacher("Rajesh Kumar") },
     { email: "teacher@dev.test", name: "Anita Desai", role: "TEACHER" as const, teacherId: teacher("Anita Desai") },
     { email: "student@dev.test", name: "Gurleen Student", role: "STUDENT" as const, sectionId: section("CSE-2A") },
+    { email: "student3@dev.test", name: "Tanvir Third-year", role: "STUDENT" as const, sectionId: section("CSE-3A") },
     { email: "placement@dev.test", name: "Pallavi Placement", role: "PLACEMENT_OFFICER" as const },
   ];
 
