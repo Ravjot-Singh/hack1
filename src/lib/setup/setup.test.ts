@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { demoCollege } from "@/lib/demo/demo-college";
 import { buildProblem, solve } from "@/lib/solver";
@@ -75,6 +76,40 @@ describe("mapping imported tables", () => {
     expect(merged).toHaveLength(5);
     expect(merged.find((d) => d.code === "AS")!.id).toBe("d-as");
     expect(mergeRows("departments", data.departments, imported, "replace")).toHaveLength(2);
+  });
+
+  it("never gives two imported rows the same existing id (look-alike names)", () => {
+    // Regression: "DBMS LAB" and "DBMS_Lab" share a loose key; both took the one room's id,
+    // React saw duplicate keys and saving overwrote one room with the other.
+    type Row = { id?: string; name: string };
+    const current: Row[] = [{ id: "r1", name: "DBMS_Lab" }, { id: "r2", name: "G16" }];
+    const imported: Row[] = [{ name: "DBMS LAB" }, { name: "DBMS_Lab" }, { name: "g16" }];
+    const merged = mergeRows("rooms", current, imported, "merge");
+    const ids = merged.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    // The exact name keeps its id; the look-alike is a new room; case-only differences still match.
+    expect(merged.find((r) => r.name === "DBMS_Lab")!.id).toBe("r1");
+    expect(merged.find((r) => r.name === "DBMS LAB")!.id).toMatch(/^new:/);
+    expect(merged.find((r) => r.name === "g16")!.id).toBe("r2");
+    expect(merged).toHaveLength(3);
+    // A loose match still works when it is the only candidate.
+    expect(mergeRows<Row>("rooms", current, [{ name: "DBMS lab" }], "merge").find((r) => r.name === "DBMS lab")!.id).toBe("r1");
+  });
+
+  it("re-importing the GNDEC rooms over themselves changes nothing and keeps every room", () => {
+    const csv = (f: string) => parseCsv(readFileSync(`data/gndec/${f}.csv`, "utf8").replace(/^﻿/, ""));
+    const table = csv("rooms");
+    const lk = lookupsOf({
+      ...data,
+      departments: csv("departments").slice(1).map((r, i) => ({ id: `d${i}`, name: r[0], code: r[1] })),
+      buildings: csv("buildings").slice(1).map((r, i) => ({ id: `b${i}`, name: r[0], travelMinutes: {} })),
+    });
+    expect(mapRows("rooms", table, lk).errors).toEqual([]);
+    const first = mergeRows("rooms", [], mapRows("rooms", table, lk).rows as { id?: string; name: string }[], "merge").map((r, i) => ({ ...r, id: `room${i}` }));
+    const again = mergeRows("rooms", first, mapRows("rooms", table, lk).rows as { id?: string; name: string }[], "merge");
+    expect(again).toHaveLength(first.length);
+    expect(new Set(again.map((r) => r.id)).size).toBe(first.length);
+    expect(again.map((r) => r.id).sort()).toEqual(first.map((r) => r.id).sort());
   });
 });
 
