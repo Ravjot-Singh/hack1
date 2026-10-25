@@ -30,9 +30,10 @@ export default function VenuesPage({ params, searchParams }: PageProps<"/[inst]/
 async function Board({ params, searchParams }: Pick<PageProps<"/[inst]/venues">, "params" | "searchParams">) {
   const { inst: slug } = await params;
   const sp = await searchParams;
-  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayIso();
   const access = await checkPage(slug, "venue.request");
   if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}/venues`} />;
+  // Read the clock only after the request-specific access check (keeps prerendering happy).
+  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayIso();
   const institutionId = access.inst.id;
   const member = access.member!;
   const userId = access.user!.id;
@@ -83,6 +84,7 @@ async function Board({ params, searchParams }: Pick<PageProps<"/[inst]/venues">,
       periods={day.periods}
       rooms={day.rooms.map((r) => ({ ...r, ownerCode: deptCode(r.ownerDeptId) }))}
       use={Object.fromEntries([...day.use].map(([roomId, m]) => [roomId, Object.fromEntries(m)]))}
+      down={Object.fromEntries([...day.down].map(([roomId, m]) => [roomId, Object.fromEntries(m)]))}
       bookings={day.rows.map((b) => view(b, roomById.get(b.roomId)?.name ?? "", roomById.get(b.roomId)))}
       queue={upcoming.filter((b) => b.status === "PENDING" && decides(b.room)).map((b) => view(b, b.room.name, b.room))}
       mine={upcoming.filter((b) => b.requestedBy === userId).map((b) => view(b, b.room.name, b.room))}

@@ -61,7 +61,8 @@ async function checkLinks(institutionId: string, v: z.output<typeof roleLink>): 
 /** Only the parts of a link that make sense for the role are kept. */
 function linksFor(v: z.output<typeof roleLink>) {
   return {
-    departmentId: v.role === "HOD" ? v.departmentId : null,
+    // A lab assistant looks after one department's labs, or the common labs when none is set.
+    departmentId: v.role === "HOD" || v.role === "LAB_ASSISTANT" ? v.departmentId : null,
     teacherId: v.role === "TEACHER" || v.role === "HOD" ? v.teacherId : null,
     sectionId: v.role === "STUDENT" ? v.sectionId : null,
   };

@@ -64,7 +64,8 @@ export async function decideBooking(slug: string, id: string, approve: boolean, 
     if (date < todayIso()) return { ok: false, error: "That date has passed." };
     const day = await loadVenueDay(institutionId, date);
     const req = { roomId: b.roomId, start: b.startPeriod, end: b.endPeriod, priority: b.priority, attendees: b.attendees };
-    const check = checkRequest(req, b.room, day.use, day.bookings, b.id);
+    const check = checkRequest(req, b.room, day.use, day.bookings, b.id, day.down);
+    if (check.outOfService.length) return { ok: false, error: `${b.room.name} is out of service then (${check.outOfService[0].reason}).` };
     if (check.classes.length && !b.classOverride) return { ok: false, error: `A class now uses ${b.room.name} then (${check.classes[0].label}).` };
     if (check.blockers.length) return { ok: false, error: `${b.room.name} is already booked then for "${check.blockers[0].title}".` };
     const above = check.competing.find((x) => PRIORITY_RANK[x.priority] > PRIORITY_RANK[b.priority]);

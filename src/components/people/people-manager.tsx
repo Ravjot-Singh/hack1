@@ -194,9 +194,9 @@ function RoleFields({
           </option>
         ))}
       </select>
-      {value.role === "HOD" && (
+      {(value.role === "HOD" || value.role === "LAB_ASSISTANT") && (
         <select aria-label="Department" className={selectClass} value={value.departmentId ?? ""} onChange={(e) => onChange({ ...value, departmentId: e.target.value || null })}>
-          <option value="">Department…</option>
+          <option value="">{value.role === "HOD" ? "Department…" : "Common labs (no department)"}</option>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.code} · {d.name}

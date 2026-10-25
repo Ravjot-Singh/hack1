@@ -27,9 +27,10 @@ export default function AbsencesPage({ params, searchParams }: PageProps<"/[inst
 async function Board({ params, searchParams }: Pick<PageProps<"/[inst]/absences">, "params" | "searchParams">) {
   const { inst: slug } = await params;
   const sp = await searchParams;
-  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayIso();
   const access = await checkPage(slug);
   if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}/absences`} />;
+  // Read the clock only after the request-specific access check (keeps prerendering happy).
+  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayIso();
   const manage = access.can("absence.manage");
   if (!manage && !access.can("absence.self")) return <NoAccess reason="role" next={`/${slug}/absences`} />;
 

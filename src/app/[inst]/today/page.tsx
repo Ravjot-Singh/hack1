@@ -6,6 +6,7 @@ import { checkPage } from "@/lib/access";
 import { loadCalendar } from "@/lib/calendar-db";
 import { loadRecentCovers } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
+import { loadRoomNotes } from "@/lib/downtime-db";
 import { loadDriveAway, loadImpactContext } from "@/lib/placements-db";
 import { loadEvents } from "@/lib/venues-db";
 import type { Assignment, InstituteInput } from "@/lib/solver";
@@ -44,6 +45,7 @@ async function Today({ params }: Pick<PageProps<"/[inst]/today">, "params">) {
   const events = await loadEvents(access.inst.id, snapshot.periods);
   const impact = await loadImpactContext(access.inst.id);
   const drives = impact ? await loadDriveAway(access.inst.id, impact) : {};
+  const roomNotes = impact ? await loadRoomNotes(access.inst.id, impact) : {};
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
@@ -57,6 +59,7 @@ async function Today({ params }: Pick<PageProps<"/[inst]/today">, "params">) {
           covers={covers}
           events={events}
           drives={drives}
+          roomNotes={roomNotes}
         />
       </Suspense>
     </div>

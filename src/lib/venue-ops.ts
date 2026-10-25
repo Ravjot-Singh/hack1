@@ -52,10 +52,11 @@ export async function submitBooking(institutionId: string, slug: string, userId:
   if (!room) return { ok: false, error: "That room no longer exists." };
   if (v.start > v.end || v.end >= day.periods.length) return { ok: false, error: "Pick a valid run of periods." };
   const req = { roomId: room.id, start: v.start, end: v.end, priority: v.priority, attendees: v.attendees };
-  const check = checkRequest(req, room, day.use, day.bookings);
+  const check = checkRequest(req, room, day.use, day.bookings, undefined, day.down);
   const when = periodRange(v.start, v.end, day.periods);
-  const alts = alternatives(req, day.rooms, day.use, day.bookings);
+  const alts = alternatives(req, day.rooms, day.use, day.bookings, 4, day.down);
 
+  if (check.outOfService.length) return { ok: false, error: `${room.name} is out of service then (${check.outOfService[0].reason}).${altText(alts)}` };
   if (check.tooSmall) return { ok: false, error: `${room.name} holds ${room.capacity}, not ${v.attendees}.${altText(alts)}` };
   const override = v.override && member.role === "HEAD_OF_INSTITUTE";
   if (check.classes.length && !override) {
@@ -122,7 +123,7 @@ export async function settleLosers(institutionId: string, slug: string, winnerId
   );
   for (const b of losers) {
     const req = { roomId: b.roomId, start: b.startPeriod, end: b.endPeriod, priority: b.priority, attendees: b.attendees };
-    const alts = alternatives(req, day.rooms, day.use, day.bookings.map((x) => (x.id === b.id ? { ...x, status: "CANCELLED" as const } : x)));
+    const alts = alternatives(req, day.rooms, day.use, day.bookings.map((x) => (x.id === b.id ? { ...x, status: "CANCELLED" as const } : x)), 4, day.down);
     const note = `${winner.room.name} went to "${winner.title}" (${PRIORITY_LABEL[winner.priority]}).`;
     await prisma.venueBooking.update({
       where: { id: b.id },

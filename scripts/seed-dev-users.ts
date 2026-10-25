@@ -24,6 +24,7 @@ async function main() {
     { email: "student@dev.test", name: "Gurleen Student", role: "STUDENT" as const, sectionId: section("CSE-2A") },
     { email: "student3@dev.test", name: "Tanvir Third-year", role: "STUDENT" as const, sectionId: section("CSE-3A") },
     { email: "placement@dev.test", name: "Pallavi Placement", role: "PLACEMENT_OFFICER" as const },
+    { email: "lab.cse@dev.test", name: "Lakhan Lab", role: "LAB_ASSISTANT" as const, departmentId: dept("CSE") },
   ];
 
   for (const a of accounts) {

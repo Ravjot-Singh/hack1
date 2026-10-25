@@ -48,6 +48,8 @@ interface Props {
   rooms: (Room & { ownerCode: string | null })[];
   /** roomId -> period -> class label */
   use: Record<string, Record<number, string>>;
+  /** roomId -> period -> why the room is out of service */
+  down: Record<string, Record<number, string>>;
   bookings: BookingView[];
   queue: BookingView[];
   mine: BookingView[];
@@ -58,7 +60,7 @@ interface Props {
 const STATUS_LABEL: Record<BookingStatus, string> = { PENDING: "Waiting", APPROVED: "Approved", REJECTED: "Declined", CANCELLED: "Cancelled" };
 const selectClass = "h-8 rounded-md border bg-background px-2 text-sm";
 
-export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use, bookings, queue, mine, priorities, isHoi }: Props) {
+export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use, down, bookings, queue, mine, priorities, isHoi }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const go = (d: string) => router.replace(`${pathname}?date=${d}`, { scroll: false });
@@ -74,13 +76,14 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
   const P = periods.length;
   const past = date < todayIso();
   const useMap = useMemo(() => new Map(Object.entries(use).map(([r, m]) => [r, new Map(Object.entries(m).map(([p, l]) => [Number(p), l]))])), [use]);
+  const downMap = useMemo(() => new Map(Object.entries(down).map(([r, m]) => [r, new Map(Object.entries(m).map(([p, why]) => [Number(p), why]))])), [down]);
   const live: Booking[] = bookings.map((b) => ({ id: b.id, roomId: b.roomId, start: b.start, end: b.end, priority: b.priority, status: b.status, title: b.title }));
   const shown = rooms.filter((r) => !type || (type === "venues" ? r.isEventVenue : r.type === type));
   const types = [...new Set(rooms.filter((r) => !r.isEventVenue).map((r) => r.type))].sort();
   const room = sel && rooms.find((r) => r.id === sel.roomId);
   const req = sel && { ...sel, priority, attendees };
-  const check = room && req ? checkRequest(req, room, useMap, live) : null;
-  const alts = room && req ? alternatives(req, rooms, useMap, live) : [];
+  const check = room && req ? checkRequest(req, room, useMap, live, undefined, downMap) : null;
+  const alts = room && req ? alternatives(req, rooms, useMap, live, 4, downMap) : [];
 
   const cellBooking = (roomId: string, p: number) =>
     bookings.find((b) => b.roomId === roomId && (b.status === "APPROVED" || b.status === "PENDING") && p >= b.start && p <= b.end && (b.status === "APPROVED" || !bookings.some((x) => x.status === "APPROVED" && x.roomId === roomId && p >= x.start && p <= x.end)));
@@ -160,29 +163,31 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
                   <span className="font-medium">{r.name}</span> <span className="text-muted-foreground">{r.capacity}</span>
                 </div>
                 {periods.map((_, p) => {
+                  const off = down[r.id]?.[p];
                   const cls = use[r.id]?.[p];
                   const b = cellBooking(r.id, p);
                   const selected = sel?.roomId === r.id && p >= sel.start && p <= sel.end;
-                  const label = cls ? `Class: ${cls}` : b ? `${b.status === "APPROVED" ? "Booked" : "Requested"}: ${b.title} (${PRIORITY_LABEL[b.priority]})` : "Free";
+                  const label = off ? `Out of service: ${off}` : cls ? `Class: ${cls}` : b ? `${b.status === "APPROVED" ? "Booked" : "Requested"}: ${b.title} (${PRIORITY_LABEL[b.priority]})` : "Free";
                   return (
                     <button
                       key={p}
                       type="button"
-                      disabled={past}
+                      disabled={past || !!off}
                       title={`${r.name}, P${p + 1}: ${label}`}
                       aria-label={`${r.name}, P${p + 1}: ${label}`}
                       aria-pressed={selected}
                       onClick={() => pick(r.id, p)}
                       className={cn(
                         "h-8 truncate rounded-[3px] px-1 text-left text-[10px] leading-8",
-                        cls && "bg-muted text-muted-foreground",
+                        off && "tt-closed text-muted-foreground",
+                        !off && cls && "bg-muted text-muted-foreground",
                         b?.status === "APPROVED" && "bg-primary text-primary-foreground",
                         b?.status === "PENDING" && "border border-dashed border-primary text-primary",
                         !cls && !b && "bg-muted/30 hover:bg-muted",
                         selected && "ring-2 ring-ring ring-offset-1 ring-offset-background",
                       )}
                     >
-                      {cls ? "class" : b ? b.title : ""}
+                      {off ? "out" : cls ? "class" : b ? b.title : ""}
                     </button>
                   );
                 })}
@@ -195,6 +200,7 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
           <Legend className="bg-muted" label="Class" />
           <Legend className="bg-primary" label="Booked" />
           <Legend className="border border-dashed border-primary" label="Requested" />
+          <Legend className="tt-closed border" label="Out of service" />
         </div>
       </section>
 
@@ -225,6 +231,7 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
           </div>
 
           <ul className="space-y-1 text-sm">
+            {check.outOfService.length > 0 && <li className="text-destructive">{room.name} is out of service then: {check.outOfService[0].reason}.</li>}
             {check.tooSmall && <li className="text-destructive">{room.name} holds {room.capacity} people.</li>}
             {check.classes.length > 0 && (
               <li className={isHoi ? "text-amber-700 dark:text-amber-300" : "text-destructive"}>
@@ -254,11 +261,11 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
                 Also requested for “{b.title}” ({PRIORITY_LABEL[b.priority]}); the approver picks, higher priority first.
               </li>
             ))}
-            {!check.tooSmall && !check.classes.length && !check.blockers.length && !check.bumps.length && !check.competing.length && (
+            {!check.tooSmall && !check.outOfService.length && !check.classes.length && !check.blockers.length && !check.bumps.length && !check.competing.length && (
               <li className="text-muted-foreground">Free for this time. Approved by the {room.ownerDeptId && !room.isEventVenue ? `HOD of ${room.ownerCode}` : "Venue Manager"}.</li>
             )}
           </ul>
-          {(check.tooSmall || (check.classes.length > 0 && !override) || check.blockers.length > 0) && alts.length > 0 && (
+          {(check.tooSmall || check.outOfService.length > 0 || (check.classes.length > 0 && !override) || check.blockers.length > 0) && alts.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 text-sm">
               <span className="text-muted-foreground">Free instead:</span>
               {alts.map((a) => (

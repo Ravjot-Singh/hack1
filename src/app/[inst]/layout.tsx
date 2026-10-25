@@ -43,6 +43,7 @@ async function Header({ params }: Pick<LayoutProps<"/[inst]">, "params">) {
   if (access.can("electives.configure") || access.can("electives.register")) items.push({ href: `/${slug}/electives`, label: "Electives" });
   if (access.can("placement.view")) items.push({ href: `/${slug}/placements`, label: "Placements" });
   if (access.can("venue.request")) items.push({ href: `/${slug}/venues`, label: "Venues" });
+  if (access.can("labs.manage")) items.push({ href: `/${slug}/labs`, label: "Labs" });
   if (access.can("calendar.manage")) items.push({ href: `/${slug}/calendar`, label: "Calendar" });
   if (access.can("people.manage")) items.push({ href: `/${slug}/people`, label: "People" });
   return (

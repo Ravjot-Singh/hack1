@@ -91,6 +91,11 @@ Day to day:
   Live counts per elective and per section; then the counts become the electives' class
   sizes, as registered or scaled to every student within the seat limits, with warnings when
   an elective outgrows its rooms or nobody chose it. The next solve plans rooms for them.
+- **Labs**: lab assistants (for one department's labs, or the common labs), the Venue Manager
+  and the admin mark rooms out of service for a date range, all day or some periods. Classes
+  due there are listed with free rooms of the same type and size to move them to for that day
+  (teachers and students are told; Today shows the new room), bookings in that time are called
+  off, and the room can't be booked meanwhile. A lab schedule shows each lab's day.
 - **Rules in your own words** (Setup → Rules): type "Dr. Rao is not available on Friday
   afternoons", "No labs on Saturday", "First years only have classes in the morning" or "Max 3
   classes in a row for teachers". A built-in reader understands teachers, sections, years,
@@ -139,7 +144,7 @@ npm run dev                 # http://localhost:3000
 ```
 
 For local testing of roles, `npx tsx scripts/seed-dev-users.ts <college-slug>` creates one
-account per role (admin, HOI, CSE HOD, teacher, a 2nd- and a 3rd-year student, placement officer) in that college; the shared dev
+account per role (admin, HOI, CSE HOD, teacher, a 2nd- and a 3rd-year student, placement officer, CSE lab assistant) in that college; the shared dev
 password is in the script. Never run it against production.
 
 Optional AI fallback for plain-English rules: set `LLM_PROVIDER` (`anthropic` or `xai`) and
@@ -186,6 +191,7 @@ src/workers/         Web Worker wrapper with progress messages
 src/lib/appointments.ts Office hours: sub-slots, busy periods per date, open slots, weekly limits
 src/lib/placements.ts Placement drives: roll-list parsing, classes hit per round, section impact
 src/lib/electives.ts Elective registration: windows, seat checks, counts -> class sizes
+src/lib/downtime.ts  Rooms out of service: who may mark them, classes hit, replacement rooms
 src/lib/venues.ts    Venue booking rules: class use per date, conflicts, priorities, approvers, alternatives
 src/lib/permissions.ts Role -> action matrix (pure, unit-tested); src/lib/access.ts applies it per request
 src/lib/auth.ts      Better Auth (email + password, optional Google), sessions in Postgres
@@ -197,4 +203,4 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 
 ## Roadmap
 
-The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: lab downtime.
+The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Phases 1–4 are complete; deployment to Vercel + Neon is next.

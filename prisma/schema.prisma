@@ -66,6 +66,8 @@ model Institution {
   drives        PlacementDrive[]
   electiveWindows ElectiveWindow[]
   electiveChoices ElectiveChoice[]
+  downtimes     RoomDowntime[]
+  roomMoves     RoomMove[]
 }
 
 model Department {
@@ -110,6 +112,7 @@ model Room {
   ownerDept     Department? @relation(fields: [ownerDeptId], references: [id], onDelete: SetNull)
   isEventVenue  Boolean     @default(false)
   bookings      VenueBooking[]
+  downtimes     RoomDowntime[]
 }
 
 model TimeGrid {
@@ -671,4 +674,40 @@ model ElectiveChoice {
 
   @@unique([basketId, studentId])
   @@index([basketId, offeringId])
+}
+
+// ---------------------------------------------------------------- Lab downtime
+
+/// A room out of service for a date range (all day, or some periods).
+model RoomDowntime {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  roomId        String
+  room          Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  fromDate      DateTime    @db.Date
+  toDate        DateTime    @db.Date
+  /// 0-based periods; empty = the whole day.
+  periods       Json        @default("[]")
+  reason        String
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId, toDate])
+}
+
+/// A class held in another room on one date (its usual room is out of service).
+model RoomMove {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  date          DateTime    @db.Date
+  versionId     String
+  lessonId      String
+  roomId        String
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@unique([institutionId, date, lessonId])
+  @@index([institutionId, date])
 }

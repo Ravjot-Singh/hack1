@@ -30,7 +30,7 @@ export const ROLE_HELP: Record<Role, string> = {
   STUDENT: "Sees their section's timetable, books office hours and registers for electives.",
   PLACEMENT_OFFICER: "Runs placement drives: rounds, venues (at placement priority) and who takes part.",
   VENUE_MANAGER: "Approves bookings of common rooms, seminar halls and auditoriums.",
-  LAB_ASSISTANT: "Sees published timetables and lab schedules.",
+  LAB_ASSISTANT: "Sees their labs' schedules and marks them out of service (one department's labs, or the common labs).",
 };
 
 export type Action =
@@ -67,7 +67,9 @@ export type Action =
   /** Open elective registration and apply the counts (HOD: baskets of their own department). */
   | "electives.configure"
   /** Choose an elective while registration is open. */
-  | "electives.register";
+  | "electives.register"
+  /** Mark rooms out of service and move affected classes (lab assistants: their own labs). */
+  | "labs.manage";
 
 export interface Member {
   role: Role;
@@ -96,6 +98,7 @@ const GRANTS: Record<Action, Role[]> = {
   "placement.manage": ["PLACEMENT_OFFICER"],
   "electives.configure": ["INSTITUTE_ADMIN", "HOD"],
   "electives.register": ["STUDENT"],
+  "labs.manage": ["INSTITUTE_ADMIN", "VENUE_MANAGER", "LAB_ASSISTANT"],
   "placement.view": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "STUDENT", "PLACEMENT_OFFICER"],
   "venue.request": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "PLACEMENT_OFFICER", "VENUE_MANAGER"],
 };

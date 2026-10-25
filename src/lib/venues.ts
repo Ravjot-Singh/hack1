@@ -67,17 +67,24 @@ export function approverLabel(room: Room, deptCode: (id: string) => string): str
 
 /**
  * room id -> period -> class label, from the timetable day running on the date. Cancelled
- * classes free their room. Event venues never hold classes.
+ * classes free their room; moved classes (their room is out of service) use the new one.
  */
-export function classUse(problem: Problem, assignment: Assignment, dayIndex: number | null, cancelled: Set<string> = new Set()): Map<string, Map<number, string>> {
+export function classUse(
+  problem: Problem,
+  assignment: Assignment,
+  dayIndex: number | null,
+  cancelled: Set<string> = new Set(),
+  moves: Map<string, string> = new Map(),
+): Map<string, Map<number, string>> {
   const out = new Map<string, Map<number, string>>();
   if (dayIndex == null) return out;
   for (const l of problem.lessons) {
     const a = assignment[l.id];
     if (!a || a.day !== dayIndex || cancelled.has(l.id)) continue;
-    const m = out.get(a.roomId) ?? new Map<number, string>();
+    const roomId = moves.get(l.id) ?? a.roomId;
+    const m = out.get(roomId) ?? new Map<number, string>();
     for (let k = 0; k < l.duration; k++) m.set(a.period + k, l.label);
-    out.set(a.roomId, m);
+    out.set(roomId, m);
   }
   return out;
 }
@@ -100,14 +107,23 @@ export interface RequestCheck {
   /** Other pending requests for the same time. */
   competing: Booking[];
   tooSmall: boolean;
+  /** Periods the room is out of service (lab downtime). */
+  outOfService: { period: number; reason: string }[];
 }
 
-export function checkRequest(req: Request, room: Room, use: Map<string, Map<number, string>>, bookings: Booking[], selfId?: string): RequestCheck {
+/** room id -> period -> reason the room is out of service. */
+export type DownMap = Map<string, Map<number, string>>;
+
+export function checkRequest(req: Request, room: Room, use: Map<string, Map<number, string>>, bookings: Booking[], selfId?: string, down: DownMap = new Map()): RequestCheck {
   const classes: RequestCheck["classes"] = [];
+  const outOfService: RequestCheck["outOfService"] = [];
   const busy = use.get(req.roomId);
+  const off = down.get(req.roomId);
   for (let p = req.start; p <= req.end; p++) {
     const label = busy?.get(p);
     if (label) classes.push({ period: p, label });
+    const reason = off?.get(p);
+    if (reason) outOfService.push({ period: p, reason });
   }
   const same = bookings.filter((b) => b.id !== selfId && b.roomId === req.roomId && overlaps(b, req));
   const approved = same.filter((b) => b.status === "APPROVED");
@@ -117,21 +133,23 @@ export function checkRequest(req: Request, room: Room, use: Map<string, Map<numb
     bumps: approved.filter((b) => PRIORITY_RANK[b.priority] < PRIORITY_RANK[req.priority]),
     competing: same.filter((b) => b.status === "PENDING"),
     tooSmall: req.attendees > room.capacity,
+    outOfService,
   };
 }
 
 /** Is the room completely free (no class, no approved booking) for the request's periods? */
-export function isFree(roomId: string, start: number, end: number, use: Map<string, Map<number, string>>, bookings: Booking[]): boolean {
+export function isFree(roomId: string, start: number, end: number, use: Map<string, Map<number, string>>, bookings: Booking[], down: DownMap = new Map()): boolean {
   const busy = use.get(roomId);
-  for (let p = start; p <= end; p++) if (busy?.has(p)) return false;
+  const off = down.get(roomId);
+  for (let p = start; p <= end; p++) if (busy?.has(p) || off?.has(p)) return false;
   return !bookings.some((b) => b.status === "APPROVED" && b.roomId === roomId && overlaps(b, { start, end }));
 }
 
 /** Free rooms that fit the request, event venues first (if one was asked for), then best fit. */
-export function alternatives(req: Request, rooms: Room[], use: Map<string, Map<number, string>>, bookings: Booking[], limit = 4): Room[] {
+export function alternatives(req: Request, rooms: Room[], use: Map<string, Map<number, string>>, bookings: Booking[], limit = 4, down: DownMap = new Map()): Room[] {
   const wanted = rooms.find((r) => r.id === req.roomId);
   return rooms
-    .filter((r) => r.id !== req.roomId && r.capacity >= req.attendees && isFree(r.id, req.start, req.end, use, bookings))
+    .filter((r) => r.id !== req.roomId && r.capacity >= req.attendees && isFree(r.id, req.start, req.end, use, bookings, down))
     .sort((a, b) => {
       const venueFirst = wanted?.isEventVenue ? Number(b.isEventVenue) - Number(a.isEventVenue) : 0;
       const sameType = Number(b.type === wanted?.type) - Number(a.type === wanted?.type);
