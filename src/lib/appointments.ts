@@ -106,7 +106,7 @@ export function slotProblem(
   if (info.busy.has(slot.period)) return "The teacher is busy then (a class, cover duty or leave).";
   const period = periods[slot.period];
   if (!period || !subSlots(period, config.slotMinutes).some((s) => s.offset === slot.offset)) return "That time isn't a valid slot.";
-  if (booked.some((b) => b.id !== ignoreId && b.teacherId === config.teacherId && b.date === slot.date && b.period === slot.period && b.offset === slot.offset)) {
+  if (booked.some((b) => (ignoreId === undefined || b.id !== ignoreId) && b.teacherId === config.teacherId && b.date === slot.date && b.period === slot.period && b.offset === slot.offset)) {
     return "Someone has just booked that slot.";
   }
   return null;
@@ -115,7 +115,7 @@ export function slotProblem(
 /** Bookings this student already holds with the teacher in the date's week. */
 export function weekCount(booked: BookedSlot[], teacherId: string, studentId: string, date: string, ignoreId?: string): number {
   const week = weekStart(date);
-  return booked.filter((b) => b.id !== ignoreId && b.teacherId === teacherId && b.studentId === studentId && weekStart(b.date) === week).length;
+  return booked.filter((b) => (ignoreId === undefined || b.id !== ignoreId) && b.teacherId === teacherId && b.studentId === studentId && weekStart(b.date) === week).length;
 }
 
 export interface OpenSlot {

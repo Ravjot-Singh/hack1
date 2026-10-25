@@ -9,6 +9,9 @@ import { prisma } from "@/lib/db";
 import { loadBasket } from "@/lib/electives-db";
 import { choiceProblem, countChoices, roomWarnings, sizesFromChoices, type ElectiveWindowInfo } from "@/lib/electives";
 
+/** A booking refused by our own checks; its message is shown as is. */
+class Refusal extends Error {}
+
 export type ElectiveResult = { ok: true; message?: string; warnings?: string[] } | { ok: false; error: string };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -79,7 +82,7 @@ export async function chooseElective(slug: string, basketId: string, offeringId:
           where: { id: basketId, institutionId },
           include: { sections: { select: { id: true } }, offerings: { include: { subject: { select: { code: true, name: true } } } }, window: true, choices: true },
         });
-        if (!basket) throw new Error("That basket no longer exists.");
+        if (!basket) throw new Refusal("That basket no longer exists.");
         const current = basket.choices.find((c) => c.studentId === studentId)?.offeringId ?? null;
         const problem = choiceProblem({
           window: basket.window ? windowInfo(basket.window as NonNullable<Basket["window"]>) : null,
@@ -95,7 +98,7 @@ export async function chooseElective(slug: string, basketId: string, offeringId:
             return s ? `${s.code} ${s.name}` : "That elective";
           },
         });
-        if (problem) throw new Error(problem);
+        if (problem) throw new Refusal(problem);
         await tx.electiveChoice.upsert({
           where: { basketId_studentId: { basketId, studentId } },
           create: { institutionId, basketId, offeringId, studentId, sectionId: sectionId! },
@@ -105,8 +108,10 @@ export async function chooseElective(slug: string, basketId: string, offeringId:
       { isolationLevel: "Serializable" },
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    return { ok: false, error: /serializ|P2034/i.test(msg) || !msg ? "Seats changed while you chose. Try again." : msg };
+    // Our own checks explain themselves; anything else is the database refusing a write that
+    // raced with another one (only one of them may win). Other failures are logged.
+    if (!(e instanceof Refusal) && (e as { code?: string }).code !== "P2034") console.error(e);
+    return { ok: false, error: e instanceof Refusal ? e.message : "Seats changed while you chose. Try again." };
   }
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };

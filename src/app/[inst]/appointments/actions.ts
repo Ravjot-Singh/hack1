@@ -9,6 +9,9 @@ import { addDays, todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
 
+/** A booking refused by our own checks; its message is shown as is. */
+class Refusal extends Error {}
+
 export type AppointmentResult = { ok: true; message?: string } | { ok: false; error: string };
 
 async function member(slug: string): Promise<Access | string> {
@@ -89,9 +92,9 @@ export async function bookAppointment(slug: string, input: unknown): Promise<App
         });
         const booked = rows.map(toBooked);
         const problem = slotProblem(v, config, info, world.snapshot.periods, booked);
-        if (problem) throw new Error(problem);
+        if (problem) throw new Refusal(problem);
         if (weekCount(booked, v.teacherId, studentId, v.date) >= config.perStudentWeek) {
-          throw new Error(`You already have ${config.perStudentWeek} booking${config.perStudentWeek === 1 ? "" : "s"} with this teacher that week (their limit).`);
+          throw new Refusal(`You already have ${config.perStudentWeek} booking${config.perStudentWeek === 1 ? "" : "s"} with this teacher that week (their limit).`);
         }
         await tx.appointment.create({
           data: { institutionId, teacherId: v.teacherId, studentId, date: toDate(v.date), period: v.period, offset: v.offset, minutes: config.slotMinutes, topic: v.topic },
@@ -100,9 +103,10 @@ export async function bookAppointment(slug: string, input: unknown): Promise<App
       { isolationLevel: "Serializable" },
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    // Serialization failures mean someone booked at the same moment.
-    return { ok: false, error: /serializ|could not serialize|P2034/i.test(msg) || !msg ? "Someone has just booked that slot." : msg };
+    // Our own checks explain themselves; anything else is the database refusing a write that
+    // raced with another one (only one of them may win). Other failures are logged.
+    if (!(e instanceof Refusal) && (e as { code?: string }).code !== "P2034") console.error(e);
+    return { ok: false, error: e instanceof Refusal ? e.message : "Someone has just booked that slot." };
   }
 
   const p = world.snapshot.periods[v.period];

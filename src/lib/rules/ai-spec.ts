@@ -76,7 +76,12 @@ export function resolveAiRule(r: AiRule, ctx: RuleContext): { ok: true; draft: R
   target.years = [...new Set(r.years.map(Math.round))];
   for (const y of target.years) if (!ctx.sections.some((s) => s.year === y)) missing.push(`year ${y}`);
   target.kinds = [...new Set(r.lessonKinds.flatMap((k) => KINDS[k]))];
-  const days = find(r.days, ctx.days.map((d, i) => ({ d, i })), (x) => [x.d, x.d.slice(0, 3)], "day").map((x) => x.i);
+  // Days match on their first three letters, so "Tuesday" finds a college day called "Tue".
+  const days = r.days.flatMap((n) => {
+    const i = ctx.days.findIndex((d) => norm(d).slice(0, 3) === norm(n).slice(0, 3));
+    if (i < 0) missing.push(`day "${n}"`);
+    return i < 0 ? [] : [i];
+  });
   const periods = r.periods.map((p) => Math.round(p) - 1);
   const bad = periods.find((p) => p < 0 || p >= ctx.periods.length);
   if (bad !== undefined) missing.push(`period ${bad + 1}`);
