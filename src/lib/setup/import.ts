@@ -223,7 +223,7 @@ export function mapRows(entity: Entity, table: string[][], lk: Lookups): ImportR
         }
         case "building": {
           const b = byName(lk.buildings, raw);
-          if (!b) fail(`building "${raw}" not found${known(lk.buildings)}`);
+          if (!b) fail(`building "${raw}" not found${lk.buildings.length ? known(lk.buildings) : ": add or import the buildings (table above) and save them first"}`);
           else out[f.key] = b.id;
           break;
         }
