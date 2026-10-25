@@ -53,7 +53,10 @@ export function construct(engine: Engine, opts: SearchOptions = {}): { iteration
     let u = -1;
     let uKey = Infinity;
     for (const x of unplaced) {
-      const key = difficulty[x] - 2 * ejected[x] + 4 * stuck[x];
+      // Recently ejected units go back in first, but only for a few rounds: units that keep
+      // ejecting each other would otherwise be chosen forever and starve everyone else.
+      const ej = ejected[x];
+      const key = difficulty[x] - 2 * Math.min(ej, 3) + Math.max(0, ej - 3) + 4 * stuck[x];
       if (key < uKey) {
         uKey = key;
         u = x;

@@ -37,13 +37,13 @@ export function solve(problem: Problem, opts: SolveOptions = {}): SolveResult {
   const assignment = engine.toAssignment();
   const { violations, unscheduled } = validate(problem, assignment);
   const explanations: Record<string, string[]> = {};
-  const done = new Set<number>();
+  // Parallel lessons (an elective basket) share their unit's reasons.
+  const byUnit = new Map<number, string[]>();
   for (const id of unscheduled) {
     const li = problem.lessons.findIndex((l) => l.id === id);
     const u = engine.lUnit[li];
-    if (done.has(u)) continue;
-    done.add(u);
-    explanations[id] = engine.blockReasons(u);
+    if (!byUnit.has(u)) byUnit.set(u, engine.blockReasons(u));
+    explanations[id] = byUnit.get(u)!;
   }
 
   return {

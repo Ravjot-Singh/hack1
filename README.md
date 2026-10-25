@@ -159,6 +159,11 @@ sentence is never sent twice, and calls are capped at 30 per college per day. Cl
 low effort with Anthropic's server-side refusal fallback enabled; `ANTHROPIC_MODEL` can be set
 to a cheaper model such as `claude-haiku-5-5`.
 
+Real college data: `data/gndec/` holds importable CSVs for GNDEC Ludhiana built from its public
+website (faculty directory, sanctioned intake and the CSE/IT timetables); `data/gndec/REPORT.md`
+says what is real, what is estimated and what was left out. `npm run gndec:build` refreshes them
+from the site and `npm run gndec:verify` imports them and solves.
+
 Tests and checks (see [`docs/TESTING.md`](docs/TESTING.md) for the plan and latest results):
 
 ```bash
