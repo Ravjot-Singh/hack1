@@ -11,7 +11,8 @@ export default function PeoplePage({ params }: PageProps<"/[inst]/people">) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">People</h1>
         <p className="text-muted-foreground">
-          Invite HODs, teachers, students and staff. Each person gets a link to join; send it by WhatsApp or email.
+          Invite HODs, teachers, students and staff. Invite one person or many at once (typed, imported from a sheet, or a whole group); each gets a
+          link to join that you share by WhatsApp, email or a mail merge.
         </p>
       </div>
       <Suspense fallback={<PageSkeleton rows={2} />}>
@@ -61,6 +62,7 @@ async function People({ params }: Pick<PageProps<"/[inst]/people">, "params">) {
         teacherId: i.teacherId,
         sectionId: i.sectionId,
         expired: i.expiresAt < new Date(),
+        sentAt: i.sentAt?.toISOString() ?? null,
       }))}
       departments={departments}
       teachers={teachers}

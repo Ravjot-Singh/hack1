@@ -120,9 +120,13 @@ Day to day:
 | Teacher / Student | **My timetable** (their own, from the published version) and published timetables |
 | Placement Officer, Venue Manager, Lab Assistant | Published timetables (their own modules are on the roadmap) |
 
-The admin invites people from **People**: one link per person (copy, WhatsApp or CSV export),
-or **Invite all teachers** in one click. Links work once and expire after 14 days. If a
-college has no Head of Institute, the admin can publish.
+The admin invites people from **People**: one person at a time, or **Several people** at once:
+typed rows, a CSV/Excel list (name, email, role, department, teacher, section; template provided)
+or a group (teachers not yet invited, one HOD per department). People who already have an account
+or an open invite are skipped. Each invite records whether its link was sent: **Download new
+links** (a CSV with a ready message, for a mail merge or WhatsApp broadcast) and **Copy new
+links** hand out only unsent ones, and **Remind not joined** renews the sent ones for 14 days.
+Links work once and expire after 14 days. If a college has no Head of Institute, the admin can publish.
 
 Setup tips that matter for real colleges:
 

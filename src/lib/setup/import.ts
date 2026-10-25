@@ -114,8 +114,8 @@ export const FIELDS: Record<Entity, Field[]> = {
   ],
 };
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-const stripTitle = (s: string) => s.replace(/^(dr|mr|ms|mrs|prof|er)\.?\s+/i, "").trim().toLowerCase();
+export const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+export const stripTitle = (s: string) => s.replace(/^(dr|mr|ms|mrs|prof|er)\.?\s+/i, "").trim().toLowerCase();
 const listSplit = (s: string) => s.split(/[;\n]/).map((x) => x.trim()).filter(Boolean);
 
 export function parseBool(s: string): boolean | null {

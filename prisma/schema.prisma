@@ -390,6 +390,8 @@ model Invite {
   invitedBy     String
   createdAt     DateTime    @default(now())
   expiresAt     DateTime
+  /// When the link was last handed out (copied, shared or exported); null = never sent.
+  sentAt        DateTime?
   acceptedAt    DateTime?
   acceptedBy    String?
 

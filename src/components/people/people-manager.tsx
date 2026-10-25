@@ -1,57 +1,63 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Download, Loader2, MessageCircle, Trash2, UserPlus, Users } from "lucide-react";
-import { changeRole, createInvite, inviteAllTeachers, removeMember, revokeInvite } from "@/app/[inst]/people/actions";
+import { BellRing, Check, ClipboardList, Copy, Download, Loader2, MessageCircle, Send, Trash2, UserPlus } from "lucide-react";
+import { changeRole, createInvite, markSent, removeMember, resendInvites, revokeInvite } from "@/app/[inst]/people/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { linksTable, shareText } from "@/lib/invites";
 import { downloadCsv } from "@/lib/setup/files";
-import { ROLE_HELP, ROLE_LABEL, type Role } from "@/lib/permissions";
+import { ROLE_HELP, ROLE_LABEL } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { BulkInvite } from "./bulk-invite";
+import { RoleFields, type PeopleLookups, type RoleLink } from "./role-fields";
 
-interface Link {
-  departmentId: string | null;
-  teacherId: string | null;
-  sectionId: string | null;
-}
-interface MemberRow extends Link {
+interface MemberRow extends RoleLink {
   id: string;
   userId: string;
   name: string;
   email: string;
-  role: Role;
 }
-interface InviteRow extends Link {
+interface InviteRow extends RoleLink {
   id: string;
   token: string;
   name: string;
   email: string | null;
-  role: Role;
   expired: boolean;
+  /** ISO time the link was last handed out; null = never sent. */
+  sentAt: string | null;
 }
-interface Props {
+interface Props extends PeopleLookups {
   slug: string;
   me: string;
   members: MemberRow[];
   invites: InviteRow[];
-  departments: { id: string; name: string; code: string }[];
-  teachers: { id: string; name: string; departmentId: string }[];
-  sections: { id: string; name: string }[];
 }
-
-const ROLES = Object.keys(ROLE_LABEL) as Role[];
-const selectClass = "h-8 rounded-md border bg-background px-2 text-sm";
 
 export function PeopleManager({ slug, me, members, invites, departments, teachers, sections }: Props) {
   const router = useRouter();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [mode, setMode] = useState<"one" | "many">("one");
   const [pending, start] = useTransition();
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  // Read after hydration so server and client render the same links.
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => "",
+  );
   const inviteUrl = (token: string) => `${origin}/invite/${token}`;
+  const lk = { departments, teachers, sections };
 
-  const describe = (l: Link & { role: Role }) =>
+  const taken = {
+    emails: new Set([...members.map((m) => m.email.toLowerCase()), ...invites.flatMap((i) => (i.email ? [i.email.toLowerCase()] : []))]),
+    teacherIds: new Set([...members, ...invites].flatMap((x) => (x.teacherId ? [x.teacherId] : []))),
+  };
+  const unsent = invites.filter((i) => !i.sentAt);
+  const sent = invites.filter((i) => i.sentAt);
+
+  const describe = (l: RoleLink) =>
     [
       l.departmentId && departments.find((d) => d.id === l.departmentId)?.code,
       l.teacherId && `as ${teachers.find((t) => t.id === l.teacherId)?.name ?? "teacher"}`,
@@ -67,53 +73,92 @@ export function PeopleManager({ slug, me, members, invites, departments, teacher
       if (res.ok) router.refresh();
     });
 
+  /** Hand out a batch of links: as a CSV for mail merge, or copied as ready-to-paste messages. */
+  const share = (list: InviteRow[], how: "csv" | "copy", file = "invite-links.csv") =>
+    start(async () => {
+      if (how === "csv") downloadCsv(file, linksTable(list, inviteUrl));
+      else if (!(await copyText(list.map((i) => `${i.name}: ${shareText(i.role, inviteUrl(i.token))}`).join("\n")))) {
+        return setMsg({ ok: false, text: "This browser blocked copying. Use Download new links instead." });
+      }
+      const res = await markSent(slug, list.map((i) => i.id));
+      setMsg(
+        res.ok
+          ? { ok: true, text: `${how === "csv" ? "Downloaded" : "Copied"} ${list.length} link${list.length === 1 ? "" : "s"}; they now count as sent.` }
+          : { ok: false, text: res.error },
+      );
+      router.refresh();
+    });
+
+  const resend = () =>
+    confirm(`Send a reminder to the ${sent.length} people who were sent a link but haven't joined? Their links get a fresh 14 days.`) &&
+    start(async () => {
+      const res = await resendInvites(slug);
+      if (!res.ok) return setMsg({ ok: false, text: res.error });
+      downloadCsv("invite-reminders.csv", linksTable(res.invites, inviteUrl));
+      setMsg({ ok: true, text: `Renewed ${res.invites.length} link${res.invites.length === 1 ? "" : "s"} for 14 days and downloaded them as invite-reminders.csv.` });
+      router.refresh();
+    });
+
   return (
     <div className="space-y-8">
-      <InviteForm
-        slug={slug}
-        departments={departments}
-        teachers={teachers}
-        sections={sections}
-        inviteUrl={inviteUrl}
-        onCreated={() => router.refresh()}
-      />
+      <section className="space-y-3 rounded-lg border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <UserPlus className="size-5" /> Invite people
+          </h2>
+          <div className="inline-flex rounded-md border p-0.5 text-sm" role="tablist">
+            {(["one", "many"] as const).map((m) => (
+              <button
+                key={m}
+                role="tab"
+                aria-selected={mode === m}
+                className={cn("rounded px-3 py-1", mode === m ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+                onClick={() => setMode(m)}
+              >
+                {m === "one" ? "One person" : "Several people"}
+              </button>
+            ))}
+          </div>
+        </div>
+        {mode === "one" ? (
+          <InviteForm slug={slug} {...lk} inviteUrl={inviteUrl} onCreated={() => router.refresh()} />
+        ) : (
+          <BulkInvite slug={slug} {...lk} taken={taken} onCreated={() => router.refresh()} />
+        )}
+      </section>
 
       <section className="space-y-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold">Waiting to join ({invites.length})</h2>
-            <p className="text-sm text-muted-foreground">Invite links work once and expire after 14 days.</p>
+            <p className="text-sm text-muted-foreground">
+              {unsent.length} not sent yet · {sent.length} sent. Links work once and expire after 14 days.
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending || !teachers.length}
-              onClick={() =>
-                start(async () => {
-                  const res = await inviteAllTeachers(slug);
-                  setMsg(res.ok ? { ok: true, text: `Created ${res.created} teacher invite${res.created === 1 ? "" : "s"}.` } : { ok: false, text: res.error });
-                  router.refresh();
-                })
-              }
-            >
-              <Users /> Invite all teachers
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={pending || !unsent.length} onClick={() => share(unsent, "csv", "new-invite-links.csv")}>
+              <Send /> Download new links ({unsent.length})
+            </Button>
+            <Button size="sm" variant="outline" disabled={pending || !unsent.length} onClick={() => share(unsent, "copy")}>
+              <ClipboardList /> Copy new links
+            </Button>
+            <Button size="sm" variant="outline" disabled={pending || !sent.length} onClick={resend}>
+              <BellRing /> Remind not joined ({sent.length})
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={!invites.length}
-              onClick={() =>
-                downloadCsv("invite-links.csv", [
-                  ["name", "email", "role", "link"],
-                  ...invites.map((i) => [i.name, i.email ?? "", ROLE_LABEL[i.role], inviteUrl(i.token)]),
-                ])
-              }
+              title="All open links, without changing what counts as sent"
+              onClick={() => downloadCsv("invite-links.csv", linksTable(invites, inviteUrl))}
             >
-              <Download /> Export links
+              <Download /> Export all
             </Button>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          The CSV has each person&apos;s name, email, link and a ready message, for a mail merge (e.g. Gmail or Outlook) or a WhatsApp broadcast.
+        </p>
         {msg && <p className={cn("text-sm", msg.ok ? "text-muted-foreground" : "text-destructive")}>{msg.text}</p>}
         {invites.length > 0 && (
           <ul className="divide-y rounded-lg border">
@@ -124,14 +169,22 @@ export function PeopleManager({ slug, me, members, invites, departments, teacher
                   {ROLE_LABEL[i.role]}
                   {describe(i) && ` · ${describe(i)}`}
                 </span>
-                {i.expired && <span className="text-xs text-destructive">expired</span>}
+                {i.expired ? (
+                  <span className="text-xs text-destructive">expired</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{i.sentAt ? `sent ${new Date(i.sentAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "not sent"}</span>
+                )}
                 <span className="ml-auto flex gap-1">
-                  <CopyButton text={inviteUrl(i.token)} />
+                  <CopyButton text={inviteUrl(i.token)} onCopied={() => {
+                      if (!i.sentAt) void markSent(slug, [i.id]).then(() => router.refresh());
+                    }}
+                  />
                   <a
                     className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-muted"
-                    href={`https://wa.me/?text=${encodeURIComponent(`Join our college timetable as ${ROLE_LABEL[i.role]}: ${inviteUrl(i.token)}`)}`}
+                    href={`https://wa.me/?text=${encodeURIComponent(shareText(i.role, inviteUrl(i.token)))}`}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => void markSent(slug, [i.id]).then(() => router.refresh())}
                   >
                     <MessageCircle className="size-3.5" /> WhatsApp
                   </a>
@@ -153,9 +206,7 @@ export function PeopleManager({ slug, me, members, invites, departments, teacher
               key={m.id}
               m={m}
               isMe={m.userId === me}
-              departments={departments}
-              teachers={teachers}
-              sections={sections}
+              lk={lk}
               pending={pending}
               onSave={(link) => run(() => changeRole(slug, m.id, link), `Updated ${m.name}.`)}
               onRemove={() => confirm(`Remove ${m.name} from this college?`) && run(() => removeMember(slug, m.id), `Removed ${m.name}.`)}
@@ -167,78 +218,10 @@ export function PeopleManager({ slug, me, members, invites, departments, teacher
   );
 }
 
-function RoleFields({
-  value,
-  onChange,
-  departments,
-  teachers,
-  sections,
-}: {
-  value: Link & { role: Role };
-  onChange: (v: Link & { role: Role }) => void;
-  departments: Props["departments"];
-  teachers: Props["teachers"];
-  sections: Props["sections"];
-}) {
-  return (
-    <>
-      <select
-        aria-label="Role"
-        className={selectClass}
-        value={value.role}
-        onChange={(e) => onChange({ ...value, role: e.target.value as Role })}
-      >
-        {ROLES.map((r) => (
-          <option key={r} value={r}>
-            {ROLE_LABEL[r]}
-          </option>
-        ))}
-      </select>
-      {(value.role === "HOD" || value.role === "LAB_ASSISTANT") && (
-        <select aria-label="Department" className={selectClass} value={value.departmentId ?? ""} onChange={(e) => onChange({ ...value, departmentId: e.target.value || null })}>
-          <option value="">{value.role === "HOD" ? "Department…" : "Common labs (no department)"}</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.code} · {d.name}
-            </option>
-          ))}
-        </select>
-      )}
-      {(value.role === "TEACHER" || value.role === "HOD") && (
-        <select aria-label="Teacher record" className={selectClass} value={value.teacherId ?? ""} onChange={(e) => onChange({ ...value, teacherId: e.target.value || null })}>
-          <option value="">{value.role === "HOD" ? "Also teaches as… (optional)" : "Which teacher…"}</option>
-          {teachers.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-      )}
-      {value.role === "STUDENT" && (
-        <select aria-label="Section" className={selectClass} value={value.sectionId ?? ""} onChange={(e) => onChange({ ...value, sectionId: e.target.value || null })}>
-          <option value="">Section…</option>
-          {sections.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      )}
-    </>
-  );
-}
-
-function InviteForm({
-  slug,
-  departments,
-  teachers,
-  sections,
-  inviteUrl,
-  onCreated,
-}: Pick<Props, "slug" | "departments" | "teachers" | "sections"> & { inviteUrl: (t: string) => string; onCreated: () => void }) {
+function InviteForm({ slug, inviteUrl, onCreated, ...lk }: PeopleLookups & { slug: string; inviteUrl: (t: string) => string; onCreated: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [link, setLink] = useState<Link & { role: Role }>({ role: "TEACHER", departmentId: null, teacherId: null, sectionId: null });
+  const [link, setLink] = useState<RoleLink>({ role: "TEACHER", departmentId: null, teacherId: null, sectionId: null });
   const [created, setCreated] = useState<{ name: string; url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -257,10 +240,7 @@ function InviteForm({
   };
 
   return (
-    <section className="space-y-3 rounded-lg border p-4">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <UserPlus className="size-5" /> Invite someone
-      </h2>
+    <>
       <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="inv-name">Name</Label>
@@ -275,12 +255,10 @@ function InviteForm({
           onChange={(v) => {
             setLink(v);
             // Picking a teacher record fills in the name.
-            const t = teachers.find((x) => x.id === v.teacherId);
+            const t = lk.teachers.find((x) => x.id === v.teacherId);
             if (t && v.teacherId !== link.teacherId) setName(t.name);
           }}
-          departments={departments}
-          teachers={teachers}
-          sections={sections}
+          {...lk}
         />
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? <Loader2 className="animate-spin" /> : <UserPlus />} Create invite link
@@ -295,30 +273,26 @@ function InviteForm({
           <CopyButton text={created.url} />
         </div>
       )}
-    </section>
+    </>
   );
 }
 
 function MemberItem({
   m,
   isMe,
-  departments,
-  teachers,
-  sections,
+  lk,
   pending,
   onSave,
   onRemove,
 }: {
   m: MemberRow;
   isMe: boolean;
-  departments: Props["departments"];
-  teachers: Props["teachers"];
-  sections: Props["sections"];
+  lk: PeopleLookups;
   pending: boolean;
-  onSave: (v: Link & { role: Role }) => void;
+  onSave: (v: RoleLink) => void;
   onRemove: () => void;
 }) {
-  const initial = { role: m.role, departmentId: m.departmentId, teacherId: m.teacherId, sectionId: m.sectionId };
+  const initial: RoleLink = { role: m.role, departmentId: m.departmentId, teacherId: m.teacherId, sectionId: m.sectionId };
   const [value, setValue] = useState(initial);
   const changed = JSON.stringify(value) !== JSON.stringify(initial);
   return (
@@ -329,7 +303,7 @@ function MemberItem({
         <span className="block text-xs text-muted-foreground">{m.email}</span>
       </span>
       <span className="flex flex-wrap items-center gap-2">
-        <RoleFields value={value} onChange={setValue} departments={departments} teachers={teachers} sections={sections} />
+        <RoleFields value={value} onChange={setValue} {...lk} />
       </span>
       <span className="ml-auto flex gap-1">
         {changed && (
@@ -345,19 +319,38 @@ function MemberItem({
   );
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
+/** Copy to the clipboard; falls back to the older copy command where the Clipboard API is blocked. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+
+function CopyButton({ text, onCopied }: { text: string; onCopied?: () => void }) {
+  const [state, setState] = useState<"idle" | "done" | "failed">("idle");
   return (
     <Button
       size="xs"
       variant="ghost"
       onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setDone(true);
-        setTimeout(() => setDone(false), 1500);
+        const ok = await copyText(text);
+        setState(ok ? "done" : "failed");
+        if (ok) onCopied?.();
+        setTimeout(() => setState("idle"), 2000);
       }}
     >
-      {done ? <Check /> : <Copy />} {done ? "Copied" : "Copy link"}
+      {state === "done" ? <Check /> : <Copy />} {state === "done" ? "Copied" : state === "failed" ? "Copy blocked" : "Copy link"}
     </Button>
   );
 }
