@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAccess, type Access } from "@/lib/access";
 import { suggestSubstitutes } from "@/lib/cover";
 import { loadDay, toDate } from "@/lib/cover-db";
+import { sweepAppointments } from "@/lib/appointments-db";
 import { prisma } from "@/lib/db";
 
 export type AbsenceResult = { ok: true } | { ok: false; error: string };
@@ -71,6 +72,7 @@ export async function markAbsent(slug: string, input: unknown): Promise<AbsenceR
     create: { institutionId: inst.id, teacherId: v.teacherId, date: toDate(v.date), periods: v.periods, reason: v.reason || null, createdBy: user!.id },
     update: { periods: v.periods, reason: v.reason || null },
   });
+  await sweepAppointments(inst.id, slug);
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };
 }
@@ -157,6 +159,8 @@ export async function setCover(slug: string, input: unknown): Promise<AbsenceRes
           : `${lesson.label} on ${when} will be taken by ${subName}.`,
     v.action === "SUBSTITUTE" ? v.substituteId : null,
   );
+  // A substitute's cover duty can clash with their office-hour bookings.
+  await sweepAppointments(access.inst.id, slug);
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };
 }

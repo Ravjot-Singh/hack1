@@ -73,6 +73,11 @@ Day to day:
   at once. Overlaps resolve by priority (Institute > Placement > Department > Club): the losing
   request is declined or bumped and its requester is notified with free rooms that fit. Only
   the Head of Institute can book over classes. Approved events show on Today.
+- **Office hours**: teachers open free periods of the published timetable (their classes and
+  breaks can't be picked), split into 10/15/20-minute slots with a per-student weekly limit and
+  a location. Students book up to two weeks ahead, their own teachers listed first; dates go
+  through the academic calendar (holidays, day swaps). Leave, cover duty or a newly published
+  timetable calls off clashing bookings and tells the student and the teacher why.
 - **Rules in your own words** (Setup → Rules): type "Dr. Rao is not available on Friday
   afternoons", "No labs on Saturday", "First years only have classes in the morning" or "Max 3
   classes in a row for teachers". A built-in reader understands teachers, sections, years,
@@ -165,6 +170,7 @@ src/lib/rules/       Plain-English rules: built-in parser, summaries, AI prompt 
 src/lib/setup/       Setup wizard logic: row schemas (zod), CSV/Excel import + export, conversions
 src/components/setup/ Editable table, import dialog, slot matrix, wizard steps
 src/workers/         Web Worker wrapper with progress messages
+src/lib/appointments.ts Office hours: sub-slots, busy periods per date, open slots, weekly limits
 src/lib/venues.ts    Venue booking rules: class use per date, conflicts, priorities, approvers, alternatives
 src/lib/permissions.ts Role -> action matrix (pure, unit-tested); src/lib/access.ts applies it per request
 src/lib/auth.ts      Better Auth (email + password, optional Google), sessions in Postgres
@@ -177,4 +183,4 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 ## Roadmap
 
 The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next:
-teacher appointments, placement drives, elective registration and lab downtime.
+placement drives, elective registration and lab downtime.

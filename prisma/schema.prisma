@@ -61,6 +61,8 @@ model Institution {
   notifications Notification[]
   aiCalls       AiCall[]
   bookings      VenueBooking[]
+  officeHours   OfficeHours[]
+  appointments  Appointment[]
 }
 
 model Department {
@@ -546,4 +548,48 @@ model VenueBooking {
 
   @@index([institutionId, date])
   @@index([institutionId, status])
+}
+
+// ---------------------------------------------------------------- Office hours & appointments
+
+/// A teacher's weekly office hours (free periods of the timetable) and booking settings.
+model OfficeHours {
+  id             String      @id @default(cuid())
+  institutionId  String
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  teacherId      String      @unique
+  /// [dayIndex, period] pairs on the weekly timetable.
+  slots          Json        @default("[]")
+  slotMinutes    Int         @default(15)
+  perStudentWeek Int         @default(2)
+  location       String      @default("")
+  updatedAt      DateTime    @updatedAt
+}
+
+enum AppointmentStatus {
+  BOOKED
+  CANCELLED
+  /// The slot stopped being free (new timetable, leave, cover duty); both sides were told.
+  INVALID
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  institutionId String
+  institution   Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  teacherId     String
+  /// The student's user id.
+  studentId     String
+  date          DateTime          @db.Date
+  period        Int
+  /// Minutes after the period starts.
+  offset        Int
+  minutes       Int
+  topic         String
+  status        AppointmentStatus @default(BOOKED)
+  note          String?
+  createdAt     DateTime          @default(now())
+
+  @@index([institutionId, teacherId, date])
+  @@index([institutionId, studentId])
 }

@@ -26,8 +26,8 @@ export const ROLE_HELP: Record<Role, string> = {
   INSTITUTE_ADMIN: "Sets up the college, runs the solver, edits drafts and manages people.",
   HEAD_OF_INSTITUTE: "Reviews timetables and publishes them.",
   HOD: "Edits their department's teachers, subjects, sections and allocation; signs off timetables.",
-  TEACHER: "Sees their own timetable and the college's published timetables.",
-  STUDENT: "Sees their section's published timetable.",
+  TEACHER: "Sees their own timetable, reports absence, books rooms and offers office hours.",
+  STUDENT: "Sees their section's published timetable and books teachers' office hours.",
   PLACEMENT_OFFICER: "Books venues at placement priority (placement drives come later).",
   VENUE_MANAGER: "Approves bookings of common rooms, seminar halls and auditoriums.",
   LAB_ASSISTANT: "Sees published timetables and lab schedules.",
@@ -55,7 +55,11 @@ export type Action =
   /** Report yourself absent. */
   | "absence.self"
   /** Ask for a room or venue. Who approves depends on the room (see lib/venues.ts). */
-  | "venue.request";
+  | "venue.request"
+  /** Offer office hours (needs a linked teacher record). */
+  | "appointments.host"
+  /** Book a teacher's office hours. */
+  | "appointments.book";
 
 export interface Member {
   role: Role;
@@ -79,6 +83,8 @@ const GRANTS: Record<Action, Role[]> = {
   "calendar.manage": ["INSTITUTE_ADMIN"],
   "absence.manage": ["INSTITUTE_ADMIN", "HOD"],
   "absence.self": ["TEACHER", "HOD"],
+  "appointments.host": ["TEACHER", "HOD"],
+  "appointments.book": ["STUDENT"],
   "venue.request": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "PLACEMENT_OFFICER", "VENUE_MANAGER"],
 };
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { sweepAppointments } from "@/lib/appointments-db";
 import { prisma } from "@/lib/db";
 import { AccessError, requireAction } from "@/lib/access";
 import type { Action } from "@/lib/permissions";
@@ -223,6 +224,8 @@ export async function publish(slug: string, versionId: string): Promise<Workflow
       data: { status: "PUBLISHED", publishedAt: new Date(), publishedBy: user!.id },
     }),
   ]);
+  // A new timetable can take away free periods students had booked.
+  await sweepAppointments(inst.id, slug);
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };
 }
