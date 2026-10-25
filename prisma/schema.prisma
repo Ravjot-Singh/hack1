@@ -63,6 +63,7 @@ model Institution {
   bookings      VenueBooking[]
   officeHours   OfficeHours[]
   appointments  Appointment[]
+  drives        PlacementDrive[]
 }
 
 model Department {
@@ -592,4 +593,41 @@ model Appointment {
 
   @@index([institutionId, teacherId, date])
   @@index([institutionId, studentId])
+}
+
+// ---------------------------------------------------------------- Placement drives
+
+model PlacementDrive {
+  id            String           @id @default(cuid())
+  institutionId String
+  institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  company       String
+  role          String           @default("")
+  notes         String           @default("")
+  /// [{ sectionId, count }]: students from each section taking part.
+  attending     Json             @default("[]")
+  /// [{ roll, sectionId }] when the list came from pasted roll numbers.
+  rolls         Json             @default("[]")
+  createdBy     String
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  rounds        PlacementRound[]
+
+  @@index([institutionId])
+}
+
+/// One round (test, interview...) on a date for a run of periods; its venue is requested
+/// as a Placement-priority booking.
+model PlacementRound {
+  id          String         @id @default(cuid())
+  driveId     String
+  drive       PlacementDrive @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  name        String
+  date        DateTime       @db.Date
+  startPeriod Int
+  endPeriod   Int
+  roomId      String?
+  bookingId   String?
+
+  @@index([driveId])
 }

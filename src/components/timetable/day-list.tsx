@@ -20,6 +20,7 @@ export function DayList({
   entityId,
   onlyDay,
   covers = [],
+  away = [],
 }: {
   problem: Problem;
   assignment: Assignment;
@@ -29,6 +30,8 @@ export function DayList({
   onlyDay?: number;
   /** Substitutions and cancellations on that day. */
   covers?: DayCover[];
+  /** Students away at placement drives on that day. */
+  away?: { lessonId: string; away: number; size: number; company: string }[];
 }) {
   const { input } = problem;
   const rooms = new Map(input.rooms.map((r) => [r.id, r.name]));
@@ -37,6 +40,11 @@ export function DayList({
   const batches = new Map(input.sections.flatMap((s) => s.batches.map((b) => [b.id, b.name] as const)));
 
   const coverOf = new Map(covers.map((c) => [c.lessonId, c]));
+  const awayOf = new Map<string, { away: number; size: number; companies: string[] }>();
+  for (const x of away) {
+    const cur = awayOf.get(x.lessonId);
+    awayOf.set(x.lessonId, cur ? { away: Math.min(x.size, cur.away + x.away), size: x.size, companies: [...cur.companies, x.company] } : { away: x.away, size: x.size, companies: [x.company] });
+  }
   const items = problem.lessons
     .filter((l) => assignment[l.id])
     .filter((l) =>
@@ -94,6 +102,11 @@ export function DayList({
                           {l.subjectCode} · {l.subjectName}
                           {extra.length > 0 && <span className="ml-1 text-xs opacity-75">({extra.join(", ")})</span>}
                         </div>
+                        {awayOf.has(l.id) && (
+                          <div className="text-xs font-medium">
+                            {awayOf.get(l.id)!.away}/{awayOf.get(l.id)!.size} away for the {awayOf.get(l.id)!.companies.join(" and ")} placement drive
+                          </div>
+                        )}
                         <div className="text-xs opacity-80">
                           {view === "room" ? `${l.sectionIds.map((s) => sections.get(s)).join(", ")} · ${who}` : `${who} · ${rooms.get(a.roomId) ?? ""}`}
                         </div>

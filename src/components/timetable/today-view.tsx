@@ -21,6 +21,8 @@ interface Props {
   covers: Record<string, DayCover[]>;
   /** Approved room bookings for nearby dates, keyed by "YYYY-MM-DD". */
   events?: Record<string, DayEvent[]>;
+  /** Classes losing students to placement drives, keyed by date. */
+  drives?: Record<string, { lessonId: string; away: number; size: number; company: string }[]>;
 }
 
 export interface DayEvent {
@@ -32,7 +34,7 @@ export interface DayEvent {
 }
 
 /** One date's classes: the published weekly timetable resolved through the academic calendar. */
-export function TodayView({ snapshot, assignment, calendar, fixed, versionName, covers, events = {} }: Props) {
+export function TodayView({ snapshot, assignment, calendar, fixed, versionName, covers, events = {}, drives = {} }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -113,7 +115,7 @@ export function TodayView({ snapshot, assignment, calendar, fixed, versionName, 
           <CalendarOff className="size-5" /> No classes. {plan.reason}.
         </div>
       ) : (
-        <DayList problem={problem} assignment={assignment} view={view} entityId={entityId} onlyDay={plan.dayIndex} covers={covers[date] ?? []} />
+        <DayList problem={problem} assignment={assignment} view={view} entityId={entityId} onlyDay={plan.dayIndex} covers={covers[date] ?? []} away={drives[date] ?? []} />
       )}
 
       {(events[date]?.length ?? 0) > 0 && (

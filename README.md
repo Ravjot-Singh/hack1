@@ -78,6 +78,13 @@ Day to day:
   a location. Students book up to two weeks ahead, their own teachers listed first; dates go
   through the academic calendar (holidays, day swaps). Leave, cover duty or a newly published
   timetable calls off clashing bookings and tells the student and the teacher why.
+- **Placement drives** (Placement Officer): company, role, rounds with date, periods and venue
+  (requested automatically at Placement priority through the venue rules), and who takes part:
+  sections filtered by department and year with a headcount each, or a pasted list of
+  "roll number, section". The impact report shows each section's students away and classes
+  affected, and every class that loses students ("20/64 away"; lab batches get their share).
+  Teachers see "10/32 away for the Infosys placement drive" on Today; students see the drives
+  their section is in. Teachers and students are notified when rounds are set or moved.
 - **Rules in your own words** (Setup → Rules): type "Dr. Rao is not available on Friday
   afternoons", "No labs on Saturday", "First years only have classes in the morning" or "Max 3
   classes in a row for teachers". A built-in reader understands teachers, sections, years,
@@ -126,7 +133,7 @@ npm run dev                 # http://localhost:3000
 ```
 
 For local testing of roles, `npx tsx scripts/seed-dev-users.ts <college-slug>` creates one
-account per role (admin, HOI, CSE HOD, teacher, student) in that college; the shared dev
+account per role (admin, HOI, CSE HOD, teacher, student, placement officer) in that college; the shared dev
 password is in the script. Never run it against production.
 
 Optional AI fallback for plain-English rules: set `LLM_PROVIDER` (`anthropic` or `xai`) and
@@ -171,6 +178,7 @@ src/lib/setup/       Setup wizard logic: row schemas (zod), CSV/Excel import + e
 src/components/setup/ Editable table, import dialog, slot matrix, wizard steps
 src/workers/         Web Worker wrapper with progress messages
 src/lib/appointments.ts Office hours: sub-slots, busy periods per date, open slots, weekly limits
+src/lib/placements.ts Placement drives: roll-list parsing, classes hit per round, section impact
 src/lib/venues.ts    Venue booking rules: class use per date, conflicts, priorities, approvers, alternatives
 src/lib/permissions.ts Role -> action matrix (pure, unit-tested); src/lib/access.ts applies it per request
 src/lib/auth.ts      Better Auth (email + password, optional Google), sessions in Postgres
@@ -182,5 +190,4 @@ Every database row carries `institutionId`, so one deployment serves many colleg
 
 ## Roadmap
 
-The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next:
-placement drives, elective registration and lab downtime.
+The full spec is in [`docs/PLAN.md`](docs/PLAN.md). Next: elective registration and lab downtime.

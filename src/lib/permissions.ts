@@ -28,7 +28,7 @@ export const ROLE_HELP: Record<Role, string> = {
   HOD: "Edits their department's teachers, subjects, sections and allocation; signs off timetables.",
   TEACHER: "Sees their own timetable, reports absence, books rooms and offers office hours.",
   STUDENT: "Sees their section's published timetable and books teachers' office hours.",
-  PLACEMENT_OFFICER: "Books venues at placement priority (placement drives come later).",
+  PLACEMENT_OFFICER: "Runs placement drives: rounds, venues (at placement priority) and who takes part.",
   VENUE_MANAGER: "Approves bookings of common rooms, seminar halls and auditoriums.",
   LAB_ASSISTANT: "Sees published timetables and lab schedules.",
 };
@@ -59,7 +59,11 @@ export type Action =
   /** Offer office hours (needs a linked teacher record). */
   | "appointments.host"
   /** Book a teacher's office hours. */
-  | "appointments.book";
+  | "appointments.book"
+  /** Create and edit placement drives. */
+  | "placement.manage"
+  /** See placement drives (students: only those their section takes part in). */
+  | "placement.view";
 
 export interface Member {
   role: Role;
@@ -85,6 +89,8 @@ const GRANTS: Record<Action, Role[]> = {
   "absence.self": ["TEACHER", "HOD"],
   "appointments.host": ["TEACHER", "HOD"],
   "appointments.book": ["STUDENT"],
+  "placement.manage": ["PLACEMENT_OFFICER"],
+  "placement.view": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "STUDENT", "PLACEMENT_OFFICER"],
   "venue.request": ["INSTITUTE_ADMIN", "HEAD_OF_INSTITUTE", "HOD", "TEACHER", "PLACEMENT_OFFICER", "VENUE_MANAGER"],
 };
 

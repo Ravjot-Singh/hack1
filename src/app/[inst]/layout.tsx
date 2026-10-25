@@ -40,6 +40,7 @@ async function Header({ params }: Pick<LayoutProps<"/[inst]">, "params">) {
   if (access.can("setup.view")) items.push({ href: `/${slug}/insights`, label: "Room use" });
   if (access.can("absence.manage") || access.can("absence.self")) items.push({ href: `/${slug}/absences`, label: "Absences" });
   if ((access.can("appointments.host") && access.member?.teacherId) || access.can("appointments.book")) items.push({ href: `/${slug}/appointments`, label: "Office hours" });
+  if (access.can("placement.view")) items.push({ href: `/${slug}/placements`, label: "Placements" });
   if (access.can("venue.request")) items.push({ href: `/${slug}/venues`, label: "Venues" });
   if (access.can("calendar.manage")) items.push({ href: `/${slug}/calendar`, label: "Calendar" });
   if (access.can("people.manage")) items.push({ href: `/${slug}/people`, label: "People" });
