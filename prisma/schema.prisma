@@ -225,6 +225,8 @@ model Offering {
   teachers      Teacher[]       @relation("OfferingTeachers")
   labTeachers   Teacher[]       @relation("OfferingLabTeachers")
   batchwiseLab  Boolean         @default(true)
+  /// Share lab batches between the lab teachers instead of all of them teaching every batch.
+  splitLabBatches Boolean       @default(false)
   basketId      String?
   basket        ElectiveBasket? @relation(fields: [basketId], references: [id], onDelete: SetNull)
   expectedSize  Int?

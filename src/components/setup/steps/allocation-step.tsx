@@ -74,6 +74,7 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
     { key: "teacherIds", label: "Teacher(s)", type: "multiselect", options: options.teachers },
     { key: "labTeacherIds", label: "Lab teacher(s)", type: "multiselect", options: options.teachers },
     { key: "batchwiseLab", label: "Labs per batch", type: "checkbox" },
+    { key: "splitLabBatches", label: "Split batches between lab teachers", type: "checkbox" },
     { key: "sectionIds", label: "Sections (combined class)", type: "multiselect", options: options.sections },
     {
       key: "basketId",
@@ -148,7 +149,7 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
         <EditableTable
           key={sectionId}
           title="Subjects for this section"
-          description="A row with several sections is a combined class taught together. Labs per batch runs practicals separately for G1, G2…"
+          description="A row with several sections is a combined class taught together. Labs per batch runs practicals separately for G1, G2…; with several lab teachers, Split shares the batches between them (G1–G2 with the first, G3–G4 with the second) instead of all of them taking every batch."
           rows={sectionRows}
           columns={columns}
           newRow={() => ({
@@ -157,6 +158,7 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
             teacherIds: [],
             labTeacherIds: [],
             batchwiseLab: true,
+            splitLabBatches: false,
             basketId: null,
             expectedSize: null,
           })}

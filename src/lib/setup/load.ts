@@ -97,6 +97,7 @@ export async function loadSetup(institutionId: string): Promise<SetupData> {
         teacherIds: o.teachers.map((t) => t.id),
         labTeacherIds: o.labTeachers.map((t) => t.id),
         batchwiseLab: o.batchwiseLab,
+        splitLabBatches: o.splitLabBatches,
         basketId: o.basketId,
         expectedSize: o.expectedSize,
       })),

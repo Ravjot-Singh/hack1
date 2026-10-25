@@ -104,6 +104,7 @@ export const offeringRow = z.object({
   teacherIds: z.array(z.string()).default([]),
   labTeacherIds: z.array(z.string()).default([]),
   batchwiseLab: z.boolean().default(true),
+  splitLabBatches: z.boolean().default(false),
   basketId: z.string().nullable().default(null),
   expectedSize: z.coerce.number().int().min(1).nullable().default(null),
 });

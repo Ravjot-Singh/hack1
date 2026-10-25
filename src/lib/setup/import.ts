@@ -108,6 +108,7 @@ export const FIELDS: Record<Entity, Field[]> = {
     { key: "teacherIds", header: "teachers", aliases: ["teacher", "faculty"], kind: "teachers", help: 'several with ";"' },
     { key: "labTeacherIds", header: "lab_teachers", aliases: ["lab teacher", "lab faculty"], kind: "teachers", help: "blank = same as teachers" },
     { key: "batchwiseLab", header: "batchwise_lab", aliases: ["batchwise"], kind: "bool", help: "blank = yes" },
+    { key: "splitLabBatches", header: "split_batches", aliases: ["split lab batches", "split"], kind: "bool", help: "yes = lab teachers share the batches; blank = no" },
     { key: "basket", header: "basket", aliases: ["elective basket", "elective group"], kind: "text", help: "electives that run at the same time" },
     { key: "expectedSize", header: "expected_size", aliases: ["enrolment", "enrollment"], kind: "int" },
   ],
@@ -316,6 +317,7 @@ export function mapRows(entity: Entity, table: string[][], lk: Lookups): ImportR
       out.labTeacherIds ??= [];
       out.teacherIds ??= [];
       out.batchwiseLab ??= true;
+      out.splitLabBatches ??= false;
       out.expectedSize ??= null;
       const basket = out.basket as string | undefined;
       delete out.basket;
@@ -495,6 +497,7 @@ export function exportTable(entity: Entity, data: SetupRows, lk: Lookups): strin
           names(o.teacherIds, lk.teachers),
           names(o.labTeacherIds, lk.teachers),
           yes(o.batchwiseLab ?? true),
+          yes(o.splitLabBatches ?? false),
           nameOf(lk.baskets, o.basketId),
           o.expectedSize ?? "",
         ];
@@ -533,8 +536,9 @@ export const TEMPLATE_EXAMPLES: Record<Entity, string[][]> = {
     ["HS201", "Universal Human Values", "AS", "2", "0", "0", "", "Classroom", "", ""],
   ],
   allocation: [
-    ["CSE-2A", "CS201", "Dr. Anita Desai", "", "yes", "", ""],
-    ["CSE-3A; ECE-3A; ME-3A", "OE301", "Ms. Priya Nair", "", "", "Open Elective", "60"],
+    ["CSE-2A", "CS201", "Dr. Anita Desai", "", "yes", "", "", ""],
+    ["CSE-2B", "CS203", "Mr. Rohit Bansal", "Mr. Rohit Bansal; Ms. Priya Nair", "yes", "yes", "", ""],
+    ["CSE-3A; ECE-3A; ME-3A", "OE301", "Ms. Priya Nair", "", "", "", "Open Elective", "60"],
   ],
 };
 

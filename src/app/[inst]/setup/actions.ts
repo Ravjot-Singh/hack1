@@ -532,7 +532,7 @@ export async function saveAllocation(slug: string, input: { baskets: unknown; of
 
     for (const o of offerings) {
       const basketId = o.basketId ? basketIds.get(o.basketId)! : null;
-      const base = { subjectId: o.subjectId, batchwiseLab: o.batchwiseLab, basketId, expectedSize: o.expectedSize };
+      const base = { subjectId: o.subjectId, batchwiseLab: o.batchwiseLab, splitLabBatches: o.splitLabBatches, basketId, expectedSize: o.expectedSize };
       const links = (ids: string[]) => ids.map((id) => ({ id }));
       if (isNewId(o.id)) {
         await tx.offering.create({

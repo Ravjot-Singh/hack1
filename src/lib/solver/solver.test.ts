@@ -129,3 +129,21 @@ describe("room supply pre-check", () => {
     expect(precheck(buildProblem(three)).some((i) => i.rule === "room-supply" && i.severity === "error")).toBe(true);
   });
 });
+
+describe("split lab batches", () => {
+  it("shares a section's lab batches between its lab teachers instead of giving each teacher all of them", () => {
+    const input = demoCollege();
+    const o = input.offerings.find((x) => x.subjectId.endsWith("cs201") && x.sectionIds[0] === "s-cse2a")!;
+    o.labTeacherIds = ["t-anita", "t-priya"];
+    const together = buildProblem(input).lessons.filter((l) => l.offeringId === o.id && l.kind === "P");
+    expect(together.every((l) => l.teacherIds.length === 2)).toBe(true);
+    o.splitLabBatches = true;
+    const split = buildProblem(input).lessons.filter((l) => l.offeringId === o.id && l.kind === "P");
+    expect(split.map((l) => [l.batchId, l.teacherIds])).toEqual([
+      ["s-cse2a-g1", ["t-anita"]],
+      ["s-cse2a-g2", ["t-priya"]],
+    ]);
+    const r = solve(buildProblem(input), { seed: 2, constructMs: 20000, improveMs: 200 });
+    expect(validate(buildProblem(input), r.assignment).violations).toEqual([]);
+  });
+});

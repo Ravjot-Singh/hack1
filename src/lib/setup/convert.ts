@@ -98,6 +98,7 @@ export function toInstituteInput(data: SetupData): InstituteInput {
       teacherIds: o.teacherIds ?? [],
       labTeacherIds: o.labTeacherIds ?? [],
       batchwiseLab: o.batchwiseLab ?? true,
+      splitLabBatches: o.splitLabBatches ?? false,
       basketId: o.basketId ?? null,
       expectedSize: o.expectedSize == null ? null : Number(o.expectedSize),
     })),

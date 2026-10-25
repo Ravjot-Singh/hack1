@@ -14,12 +14,27 @@ export interface SolveOptions {
 /** Full pipeline: construct, improve, then independently validate and score. */
 export function solve(problem: Problem, opts: SolveOptions = {}): SolveResult {
   const t0 = Date.now();
-  const engine = new Engine(problem);
-  const { iterations } = construct(engine, {
+  const budget = opts.constructMs ?? 20000;
+  // Good starts finish in well under a second; a stuck one is cut short so more starts fit.
+  const perAttempt = Math.max(1500, Math.min(3000, budget / 4));
+  // A run that gets stuck with classes left over is restarted from a different random start
+  // while the construction budget lasts; the best attempt (fewest classes left) is kept.
+  let engine = new Engine(problem);
+  let { iterations } = construct(engine, {
     seed: opts.seed,
-    timeLimitMs: opts.constructMs ?? 20000,
+    timeLimitMs: Math.min(budget, perAttempt),
     onProgress: (iteration, placed, total) => opts.onProgress?.({ phase: "construct", iteration, placed, total }),
   });
+  for (let attempt = 1; engine.placedCount() < engine.uDur.length && Date.now() - t0 < budget; attempt++) {
+    const next = new Engine(problem);
+    const run = construct(next, {
+      seed: (opts.seed ?? 1) + attempt * 7919,
+      timeLimitMs: Math.min(perAttempt, budget - (Date.now() - t0)),
+      onProgress: (iteration, placed, total) => opts.onProgress?.({ phase: "construct", iteration: iterations + iteration, placed, total }),
+    });
+    iterations += run.iterations;
+    if (next.placedCount() > engine.placedCount()) engine = next;
+  }
 
   improve(engine, {
     seed: opts.seed,

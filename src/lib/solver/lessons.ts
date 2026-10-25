@@ -124,15 +124,17 @@ export function buildProblem(input: InstituteInput): Problem {
         );
         return;
       }
-      for (const s of secs) {
-        const groups = s.batches.length ? s.batches : [{ id: s.id, name: "", size: s.size }];
-        for (const b of groups) {
+      const groups = secs.flatMap((s) => (s.batches.length ? s.batches : [{ id: s.id, name: "", size: s.size }]).map((b) => ({ s, b })));
+      groups.forEach(({ s, b }, i) => {
+        // Split: consecutive runs of batches per teacher (4 batches, 2 teachers: G1-G2, G3-G4).
+        const teacherIds = o.splitLabBatches && labTeachers.length > 1 ? [labTeachers[Math.floor((i * labTeachers.length) / groups.length)]] : labTeachers;
+        {
           addLesson(
             {
               ...base,
               id: `${o.id}:P${k}:${b.id}`,
               kind: "P",
-              teacherIds: labTeachers,
+              teacherIds,
               batchId: s.batches.length ? b.id : null,
               atoms: [b.id],
               size: b.size,
@@ -143,7 +145,7 @@ export function buildProblem(input: InstituteInput): Problem {
             null,
           );
         }
-      }
+      });
     });
   }
 

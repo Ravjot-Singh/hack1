@@ -142,6 +142,8 @@ export interface OfferingInput {
   labTeacherIds: string[];
   /** Practicals run per batch (G1, G2...) instead of for the whole section. */
   batchwiseLab: boolean;
+  /** Per-batch labs: share the batches between the lab teachers (G1, G2 with the first...) instead of all teaching every batch. */
+  splitLabBatches?: boolean;
   /** Elective basket: all offerings in a basket run in parallel. */
   basketId: string | null;
   /** Expected enrolment for electives (defaults to an even share of the basket). */
