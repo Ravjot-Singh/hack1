@@ -23,7 +23,7 @@ function importGndec() {
   let seq = 0;
   const save = <T extends { id?: string }>(rows: T[]) => rows.map((r) => ({ ...r, id: r.id?.startsWith("new:") || !r.id ? `id${++seq}` : r.id }));
   const errors: string[] = [];
-  for (const [entity, key] of [["departments", "departments"], ["rooms", "rooms"], ["teachers", "teachers"], ["programs", "programs"], ["sections", "sections"], ["subjects", "subjects"], ["allocation", "offerings"]] as [Entity, keyof SetupData][]) {
+  for (const [entity, key] of [["departments", "departments"], ["buildings", "buildings"], ["rooms", "rooms"], ["teachers", "teachers"], ["programs", "programs"], ["sections", "sections"], ["subjects", "subjects"], ["allocation", "offerings"]] as [Entity, keyof SetupData][]) {
     const file = entity === "allocation" ? "allocation" : entity;
     const res = mapRows(entity, parseCsv(readFileSync(`data/gndec/${file}.csv`, "utf8").replace(/^﻿/, "")), lookupsOf(data));
     errors.push(...res.errors);
