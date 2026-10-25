@@ -96,6 +96,11 @@ Day to day:
   due there are listed with free rooms of the same type and size to move them to for that day
   (teachers and students are told; Today shows the new room), bookings in that time are called
   off, and the room can't be booked meanwhile. A lab schedule shows each lab's day.
+- **Lunch by department** (Setup → Time grids): give each department its own lunch period, or
+  spread them automatically over a lunch window so about the same number of students eat at a
+  time. A chart shows students at lunch per period, now and with the plan. Sections move to a
+  copy of their grid with the new lunch (half days and other breaks kept); the next solve
+  plans around it.
 - **Rules in your own words** (Setup → Rules): type "Dr. Rao is not available on Friday
   afternoons", "No labs on Saturday", "First years only have classes in the morning" or "Max 3
   classes in a row for teachers". A built-in reader understands teachers, sections, years,

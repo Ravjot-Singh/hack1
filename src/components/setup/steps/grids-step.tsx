@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { newId, type GridRow } from "@/lib/setup/schemas";
 import { cn } from "@/lib/utils";
 import { SlotMatrix } from "../slot-matrix";
+import { LunchPanel } from "./lunch-panel";
 import type { StepProps } from "../step-view";
 
 const GRID_STATES = [
@@ -140,6 +141,8 @@ export function GridsStep({ slug, data, readOnly }: StepProps) {
           </div>
         </div>
       )}
+      {dirty && !readOnly && <p className="text-xs text-muted-foreground">Save the grids first to plan lunch by department.</p>}
+      <LunchPanel slug={slug} data={data} disabled={readOnly || dirty} />
     </div>
   );
 }

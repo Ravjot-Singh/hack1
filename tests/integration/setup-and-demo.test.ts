@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { saveRules } from "@/app/[inst]/setup/actions";
+import { applyLunchPlan, saveRules } from "@/app/[inst]/setup/actions";
+import { gridLunch } from "@/lib/setup/lunch";
 import { requestBooking } from "@/app/[inst]/venues/actions";
 import { demoCollege } from "@/lib/demo/demo-college";
 import { prisma } from "@/lib/db";
@@ -28,6 +29,28 @@ describe("setup", () => {
     const saved = (await prisma.institution.findUniqueOrThrow({ where: { id: c.institutionId } })).rules as unknown as RuleSettings;
     expect(saved.custom?.[0]).toMatchObject({ text: "No labs on Saturday", strength: "hard" });
     expect(await saveRules(c.slug, { ...rules, maxConsecutiveSection: 99 })).toMatchObject({ ok: false });
+  });
+});
+
+describe("lunch by department", () => {
+  it("moves a department's sections to a grid with its own lunch, and back", async () => {
+    await member(c, "INSTITUTE_ADMIN");
+    const cse = c.id("d-cse");
+    const cseSections = () => prisma.section.findMany({ where: { institutionId: c.institutionId, departmentId: cse }, include: { grid: true } });
+    expect((await applyLunchPlan(c.slug, { lunches: { [cse]: 3 } })).ok).toBe(true);
+    const moved = await cseSections();
+    expect(new Set(moved.map((s) => s.gridId)).size).toBe(1);
+    expect(gridLunch(moved[0].grid.open as boolean[][])).toBe(3);
+    expect(moved[0].grid.name).toMatch(/ · lunch P4$/);
+    // Saturday (a half day) is unchanged.
+    expect((moved[0].grid.open as boolean[][])[5]).toEqual(c.input.grids.find((g) => g.id === c.id("g-senior"))!.open[5]);
+    // Other departments are untouched.
+    expect((await prisma.section.findFirstOrThrow({ where: { id: c.id("s-ece2a") } })).gridId).toBe(c.id("g-senior"));
+
+    // Back to the seniors' P6 lunch: the sections return to the original grid and the copy goes.
+    expect((await applyLunchPlan(c.slug, { lunches: { [cse]: 5 } })).ok).toBe(true);
+    expect((await cseSections()).every((s) => s.gridId === c.id("g-senior"))).toBe(true);
+    expect(await prisma.timeGrid.count({ where: { institutionId: c.institutionId, name: { contains: " · lunch P" } } })).toBe(0);
   });
 });
 

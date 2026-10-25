@@ -10,6 +10,7 @@ import { cacheKey, resolveAiRule, type AiRule } from "@/lib/rules/ai-spec";
 import type { RuleDraft } from "@/lib/rules/draft";
 import { toInstituteInput } from "@/lib/setup/convert";
 import { loadSetup } from "@/lib/setup/load";
+import { gridLunch, moveLunch } from "@/lib/setup/lunch";
 import {
   basketRow,
   buildingRow,
@@ -250,6 +251,60 @@ export async function saveGrids(slug: string, input: unknown): Promise<SaveResul
       else await tx.timeGrid.update({ where: { id: r.id }, data: { name: r.name, open: r.open } });
     }
   });
+}
+
+// ---------------------------------------------------------------- Lunch by department
+
+const lunchPlan = z.object({ lunches: z.record(z.string(), z.number().int().min(0).max(20).nullable()) });
+const LUNCH_SUFFIX = / · lunch P\d+$/;
+
+/**
+ * Give each department its own lunch period: every section of the department moves to a copy
+ * of its current grid with lunch at that period (half days and other breaks are kept).
+ * Grids made this way that no section uses any more are removed.
+ */
+export async function applyLunchPlan(slug: string, input: unknown): Promise<SaveResult & { message?: string }> {
+  const parsed = lunchPlan.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Bad lunch plan." };
+  let moved = 0;
+  let created = 0;
+  const res = await run(slug, "setup.institute", async (institutionId, tx) => {
+    const [inst, grids, sections, programs] = await Promise.all([
+      tx.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { periods: true } }),
+      tx.timeGrid.findMany({ where: { institutionId } }),
+      tx.section.findMany({ where: { institutionId } }),
+      tx.program.findMany({ where: { institutionId } }),
+    ]);
+    const P = (inst.periods as unknown[]).length;
+    const deptOf = new Map(programs.map((p) => [p.id, p.departmentId]));
+    const all = grids.map((g) => ({ id: g.id, name: g.name, open: g.open as boolean[][] }));
+    const same = (a: boolean[][], b: boolean[][]) => JSON.stringify(a) === JSON.stringify(b);
+    for (const s of sections) {
+      const lunch = parsed.data.lunches[deptOf.get(s.programId) ?? ""];
+      if (lunch == null) continue;
+      if (lunch >= P) throw new UserError("That lunch period isn't in the bell schedule.");
+      const grid = all.find((g) => g.id === s.gridId)!;
+      if (gridLunch(grid.open) === lunch) continue;
+      const open = moveLunch(grid.open, lunch);
+      let target = all.find((g) => same(g.open, open));
+      if (!target) {
+        const base = `${grid.name.replace(LUNCH_SUFFIX, "")} · lunch P${lunch + 1}`;
+        let name = base;
+        for (let i = 2; all.some((g) => g.name === name); i++) name = `${base} (${i})`;
+        const row = await tx.timeGrid.create({ data: { institutionId, name, open } });
+        target = { id: row.id, name, open };
+        all.push(target);
+        created++;
+      }
+      await tx.section.update({ where: { id: s.id }, data: { gridId: target.id } });
+      s.gridId = target.id;
+      moved++;
+    }
+    const used = new Set(sections.map((s) => s.gridId));
+    await tx.timeGrid.deleteMany({ where: { institutionId, id: { in: all.filter((g) => LUNCH_SUFFIX.test(g.name) && !used.has(g.id)).map((g) => g.id) } } });
+  });
+  if (!res.ok) return res;
+  return { ok: true, message: moved ? `Moved ${plural(moved, "section")} to their department's lunch${created ? ` (${plural(created, "new grid")})` : ""}.` : "Nothing to change." };
 }
 
 // ---------------------------------------------------------------- Teachers
