@@ -49,7 +49,16 @@ export const FIELDS: Record<Entity, Field[]> = {
     { key: "name", header: "name", aliases: ["department", "department name"], kind: "text", required: true },
     { key: "code", header: "code", aliases: ["short name", "abbreviation"], kind: "text", required: true },
   ],
-  buildings: [{ key: "name", header: "name", aliases: ["building", "block"], kind: "text", required: true }],
+  buildings: [
+    { key: "name", header: "name", aliases: ["building", "block"], kind: "text", required: true },
+    {
+      key: "walking",
+      header: "walking_minutes",
+      aliases: ["walking time", "walking minutes", "travel", "travel minutes"],
+      kind: "text",
+      help: 'Minutes to walk to other buildings, e.g. "IT Block 5; Workshop Building 4"',
+    },
+  ],
   rooms: [
     { key: "name", header: "name", aliases: ["room", "room no", "room number"], kind: "text", required: true },
     { key: "type", header: "type", aliases: ["room type"], kind: "text", required: true, help: "e.g. Classroom, Computer Lab" },
@@ -321,6 +330,24 @@ export function mapRows(entity: Entity, table: string[][], lk: Lookups): ImportR
     rows.push(out);
   }
 
+  if (entity === "buildings") {
+    // "IT Block 5; Workshop 4": names may be other rows of this file or buildings already added.
+    const names = new Set([...rows.map((r) => norm(String(r.name))), ...lk.buildings.map((b) => norm(b.name))]);
+    rows.forEach((row) => {
+      const raw = row.walking as string | undefined;
+      delete row.walking;
+      if (!raw) return;
+      const byName: Record<string, number> = {};
+      for (const part of raw.split(/[;\n]/).map((x) => x.trim()).filter(Boolean)) {
+        const m = /^(.+?)\s*[:=-]?\s*(\d{1,3})\s*(?:min(?:ute)?s?)?$/i.exec(part);
+        if (!m) errors.push(`${row.name}: walking time "${part}" should look like "IT Block 5"`);
+        else if (!names.has(norm(m[1]))) errors.push(`${row.name}: building "${m[1]}" not found in this file or the college`);
+        else byName[m[1]] = Math.min(120, Number(m[2]));
+      }
+      row.walkingByName = byName;
+    });
+  }
+
   if (entity !== "allocation") return { rows, errors };
 
   // Resolve baskets: reuse existing ones by name, create the rest.
@@ -368,8 +395,24 @@ export function mergeRows<T extends { id?: string }>(entity: Entity, current: T[
     const match = byKey.get(key);
     return { ...match, ...row, id: match?.id ?? newId() } as T;
   });
-  if (mode === "replace") return merged;
-  return [...current.filter((r) => !seen.has(naturalKey(entity, r as Record<string, unknown>))), ...merged];
+  const all = mode === "replace" ? merged : [...current.filter((r) => !seen.has(naturalKey(entity, r as Record<string, unknown>))), ...merged];
+  if (entity === "buildings") resolveWalking(all as unknown as (BuildingRow & { walkingByName?: Record<string, number> })[]);
+  return all;
+}
+
+/** Turn imported "building name -> minutes" into travelMinutes by id, both ways. */
+function resolveWalking(rows: (BuildingRow & { walkingByName?: Record<string, number> })[]) {
+  const idOf = new Map(rows.map((r) => [norm(r.name), r.id!]));
+  for (const r of rows) r.travelMinutes = { ...(r.travelMinutes ?? {}) };
+  for (const r of rows) {
+    for (const [name, minutes] of Object.entries(r.walkingByName ?? {})) {
+      const other = rows.find((x) => x.id === idOf.get(norm(name)));
+      if (!other || other.id === r.id) continue;
+      r.travelMinutes![other.id!] = minutes;
+      other.travelMinutes![r.id!] = minutes;
+    }
+    delete r.walkingByName;
+  }
 }
 
 // ---- Export (current data -> spreadsheet table) ----
@@ -398,7 +441,13 @@ export function exportTable(entity: Entity, data: SetupRows, lk: Lookups): strin
       body = data.departments.map((d) => [d.name, d.code]);
       break;
     case "buildings":
-      body = data.buildings.map((b) => [b.name]);
+      body = data.buildings.map((b) => [
+        b.name,
+        Object.entries(b.travelMinutes ?? {})
+          .map(([id, m]) => `${nameOf(lk.buildings, id)} ${m}`)
+          .filter((x) => !x.startsWith(" "))
+          .join("; "),
+      ]);
       break;
     case "rooms":
       body = data.rooms.map((r) => [r.name, r.type, r.capacity, nameOf(lk.buildings, r.buildingId), dept(r.ownerDeptId), yes(r.isEventVenue)]);
@@ -461,7 +510,10 @@ export const TEMPLATE_EXAMPLES: Record<Entity, string[][]> = {
     ["Computer Science & Engineering", "CSE"],
     ["Applied Sciences", "AS"],
   ],
-  buildings: [["Main Block"], ["Engineering Block"]],
+  buildings: [
+    ["Main Block", "Engineering Block 4"],
+    ["Engineering Block", ""],
+  ],
   rooms: [
     ["E-201", "Classroom", "70", "Engineering Block", "CSE", "no"],
     ["CS Lab 1", "Computer Lab", "36", "Engineering Block", "", "no"],

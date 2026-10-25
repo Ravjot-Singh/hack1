@@ -164,3 +164,24 @@ describe("suggest allocation", () => {
     expect(new Set(picks).size).toBe(picks.length);
   });
 });
+
+describe("building walking times", () => {
+  const lk = lookupsOf(fromInstituteInput(demoCollege()));
+  const empty = { ...lk, buildings: [] };
+
+  it("imports walking minutes by name, both ways, and exports them back", () => {
+    const res = mapRows("buildings", parseCsv("name,walking_minutes\nAdmin Block,IT Block 5; Workshop 3 min\nIT Block,\nWorkshop,"), empty);
+    expect(res.errors).toEqual([]);
+    const rows = mergeRows("buildings", [], res.rows as never[], "merge") as { id: string; name: string; travelMinutes: Record<string, number> }[];
+    const id = (n: string) => rows.find((r) => r.name === n)!.id;
+    expect(rows.find((r) => r.name === "Admin Block")!.travelMinutes).toEqual({ [id("IT Block")]: 5, [id("Workshop")]: 3 });
+    expect(rows.find((r) => r.name === "Workshop")!.travelMinutes).toEqual({ [id("Admin Block")]: 3 });
+    const table = exportTable("buildings", { ...fromInstituteInput(demoCollege()), buildings: rows }, { ...empty, buildings: rows });
+    expect(table[1]).toEqual(["Admin Block", "IT Block 5; Workshop 3"]);
+  });
+
+  it("reports unknown buildings and bad entries", () => {
+    const res = mapRows("buildings", parseCsv("name,walking_minutes\nAdmin Block,Moon Base 5; IT Block soon"), empty);
+    expect(res.errors).toEqual(['Admin Block: building "Moon Base" not found in this file or the college', 'Admin Block: walking time "IT Block soon" should look like "IT Block 5"']);
+  });
+});
