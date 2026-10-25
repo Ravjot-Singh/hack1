@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { demoCollege } from "@/lib/demo/demo-college";
 import { buildProblem, precheck, solve, validate } from "@/lib/solver";
@@ -33,7 +33,14 @@ function importGndec() {
   return { input: toInstituteInput(data), errors };
 }
 
-describe("GNDEC Ludhiana data", () => {
+// The data is local test data, not in git: the suite is skipped when it isn't there.
+const hasData = existsSync("data/gndec/allocation.csv");
+describe.skipIf(!hasData)("GNDEC Ludhiana data", () => {
+  // Vitest still runs a skipped suite's body to collect its tests, so only import when present.
+  if (!hasData) {
+    it("needs data/gndec");
+    return;
+  }
   const { input, errors } = importGndec();
   const problem = buildProblem(input);
 

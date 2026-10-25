@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { demoCollege } from "@/lib/demo/demo-college";
 import { buildProblem, solve } from "@/lib/solver";
@@ -96,7 +96,8 @@ describe("mapping imported tables", () => {
     expect(mergeRows<Row>("rooms", current, [{ name: "DBMS lab" }], "merge").find((r) => r.name === "DBMS lab")!.id).toBe("r1");
   });
 
-  it("re-importing the GNDEC rooms over themselves changes nothing and keeps every room", () => {
+  // data/gndec is local test data, not in git: skipped when it isn't there.
+  it.skipIf(!existsSync("data/gndec/rooms.csv"))("re-importing the GNDEC rooms over themselves changes nothing and keeps every room", () => {
     const csv = (f: string) => parseCsv(readFileSync(`data/gndec/${f}.csv`, "utf8").replace(/^﻿/, ""));
     const table = csv("rooms");
     const lk = lookupsOf({

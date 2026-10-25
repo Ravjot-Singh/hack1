@@ -47,3 +47,8 @@ next-env.d.ts
 # Playwright
 /test-results/
 /playwright-report/
+
+# Local test data and its extractor (not part of the app)
+/data/
+/scripts/gndec/
+/public/_tmp-import/

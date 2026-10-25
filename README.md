@@ -161,11 +161,6 @@ to a cheaper model such as `claude-haiku-5-5`.
 
 Allocation can share a lab's batches between its lab teachers (Split batches / `split_batches`), as many colleges do, instead of every lab teacher taking every batch. The solver restarts from a fresh random start when a run gets stuck, keeping the best result within its time budget.
 
-Real college data: `data/gndec/` holds importable CSVs for GNDEC Ludhiana built from its public
-website (faculty directory, sanctioned intake and the CSE/IT timetables); `data/gndec/REPORT.md`
-says what is real, what is estimated and what was left out. `npm run gndec:build` refreshes them
-from the site and `npm run gndec:verify` imports them and solves.
-
 Tests and checks (see [`docs/TESTING.md`](docs/TESTING.md) for the plan and latest results):
 
 ```bash

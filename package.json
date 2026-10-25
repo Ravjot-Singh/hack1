@@ -16,9 +16,7 @@
     "db:migrate": "prisma migrate dev",
     "db:prod": "node scripts/with-prod-db.mjs",
     "db:check": "tsx scripts/check-db.ts",
-    "samples": "tsx scripts/export-demo-csv.ts",
-    "gndec:build": "node --use-system-ca --import tsx scripts/gndec/build.ts",
-    "gndec:verify": "tsx scripts/gndec/verify.ts"
+    "samples": "tsx scripts/export-demo-csv.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
