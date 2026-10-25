@@ -371,33 +371,49 @@ export function mapRows(entity: Entity, table: string[][], lk: Lookups): ImportR
   return { rows, errors, baskets };
 }
 
-/** Natural key used to match imported rows to existing ones (so re-importing updates, not duplicates). */
-export function naturalKey(entity: Entity, row: Record<string, unknown>): string {
+/**
+ * Natural key used to match imported rows to existing ones (so re-importing updates, not
+ * duplicates). Loose keys ignore punctuation ("DBMS LAB" = "DBMS_Lab"); exact keys only case
+ * and spacing.
+ */
+export function naturalKey(entity: Entity, row: Record<string, unknown>, loose = true): string {
+  const k = (s: unknown) => (loose ? norm(String(s ?? "")) : String(s ?? "").trim().toLowerCase().replace(/\s+/g, " "));
   switch (entity) {
     case "departments":
     case "subjects":
-      return norm(String(row.code ?? ""));
+      return k(row.code);
     case "allocation":
       return `${row.subjectId}|${[...((row.sectionIds as string[]) ?? [])].sort().join(",")}`;
     default:
-      return norm(String(row.name ?? ""));
+      return k(row.name);
   }
 }
 
 /**
  * Merge imported rows into the current table. "merge" updates matching rows (keeping their ids)
  * and appends the rest; "replace" keeps ids of matches but drops rows not in the file.
+ * Each existing row is matched at most once: exact names first, then a loose match only when
+ * it is the one unclaimed candidate. Otherwise two look-alike rows ("DBMS LAB", "DBMS_Lab")
+ * would both take one room's id, and saving would overwrite one with the other.
  */
 export function mergeRows<T extends { id?: string }>(entity: Entity, current: T[], imported: T[], mode: "merge" | "replace"): T[] {
-  const byKey = new Map(current.map((r) => [naturalKey(entity, r as Record<string, unknown>), r]));
-  const seen = new Set<string>();
-  const merged = imported.map((row) => {
-    const key = naturalKey(entity, row as Record<string, unknown>);
-    seen.add(key);
-    const match = byKey.get(key);
+  const key = (r: T, loose: boolean) => naturalKey(entity, r as Record<string, unknown>, loose);
+  const claimed = new Set<T>();
+  const matchOf = new Map<number, T>();
+  for (const loose of [false, true]) {
+    imported.forEach((row, i) => {
+      if (matchOf.has(i)) return;
+      const candidates = current.filter((r) => !claimed.has(r) && key(r, loose) === key(row, loose));
+      if (candidates.length !== 1) return;
+      claimed.add(candidates[0]);
+      matchOf.set(i, candidates[0]);
+    });
+  }
+  const merged = imported.map((row, i) => {
+    const match = matchOf.get(i);
     return { ...match, ...row, id: match?.id ?? newId() } as T;
   });
-  const all = mode === "replace" ? merged : [...current.filter((r) => !seen.has(naturalKey(entity, r as Record<string, unknown>))), ...merged];
+  const all = mode === "replace" ? merged : [...current.filter((r) => !claimed.has(r)), ...merged];
   if (entity === "buildings") resolveWalking(all as unknown as (BuildingRow & { walkingByName?: Record<string, number> })[]);
   return all;
 }

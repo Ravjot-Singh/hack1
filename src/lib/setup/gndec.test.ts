@@ -39,7 +39,8 @@ describe("GNDEC Ludhiana data", () => {
 
   it("imports without errors and passes the readiness check", () => {
     expect(errors).toEqual([]);
-    expect(problem.lessons.length).toBeGreaterThan(700);
+    // Published CSE/IT classes plus the generated curriculum for every other section.
+    expect(problem.lessons.length).toBeGreaterThan(2500);
     expect(precheck(problem).filter((i) => i.severity === "error")).toEqual([]);
   });
 
