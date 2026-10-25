@@ -43,3 +43,7 @@ next-env.d.ts
 # prisma client (generated on install)
 /src/generated
 !.env.example
+
+# Playwright
+/test-results/
+/playwright-report/

@@ -154,10 +154,12 @@ sentence is never sent twice, and calls are capped at 30 per college per day. Cl
 low effort with Anthropic's server-side refusal fallback enabled; `ANTHROPIC_MODEL` can be set
 to a cheaper model such as `claude-haiku-5-5`.
 
-Tests and checks:
+Tests and checks (see [`docs/TESTING.md`](docs/TESTING.md) for the plan and latest results):
 
 ```bash
-npm test          # solver unit + property tests (Vitest)
+npm test                  # unit + property tests (Vitest)
+npm run test:integration  # server actions on a separate <db>_test database
+npm run test:e2e          # browser tests in Edge against the dev server (needs the dev accounts)
 npm run typecheck
 npm run lint
 ```

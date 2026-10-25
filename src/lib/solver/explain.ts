@@ -143,8 +143,11 @@ export function precheck(problem: Problem): Issue[] {
       });
     }
   }
-  // Upper bound on teaching periods any room can offer: the most open grid.
-  const openAny = Math.max(0, ...input.grids.map((g) => openCount(g.id)));
+  // Upper bound on teaching periods any room can offer.
+  // A room isn't tied to one grid: it can host first years while seniors are at lunch and the
+  // other way round, so it offers every slot that is open in at least one grid.
+  let openAny = 0;
+  for (let d = 0; d < D; d++) for (let p = 0; p < P; p++) if (input.grids.some((g) => g.open[d]?.[p])) openAny++;
   for (const [type, need] of demandByType) {
     const supply = input.rooms.filter((r) => !r.isEventVenue && r.type === type).length * openAny;
     if (supply && need > supply) {

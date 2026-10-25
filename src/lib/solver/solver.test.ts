@@ -107,3 +107,25 @@ describe("explaining failure", () => {
     expect(validate(problem, result.assignment).violations).toEqual([]);
   });
 });
+
+describe("room supply pre-check", () => {
+  it("counts slots open in any grid (staggered lunches), so a feasible college isn't called impossible", () => {
+    // Regression: with 4 classrooms on a 5-day week the demo needs 146 classroom periods. Each
+    // grid has 35 open slots, but lunches are staggered, so a room really offers 40.
+    const input = demoCollege();
+    input.days = input.days.slice(0, 5);
+    input.grids = input.grids.map((g) => ({ ...g, open: g.open.slice(0, 5) }));
+    input.teachers.forEach((t) => (t.unavailable = t.unavailable.filter(([d]) => d < 5)));
+    let kept = 0;
+    input.rooms = input.rooms.filter((r) => r.type !== "Classroom" || kept++ < 4);
+    const problem = buildProblem(input);
+    expect(precheck(problem).filter((i) => i.rule === "room-supply" && i.severity === "error")).toEqual([]);
+    const result = solve(problem, { seed: 1, constructMs: 20000, improveMs: 300 });
+    expect(result.unscheduled).toEqual([]);
+    expect(validate(problem, result.assignment).violations).toEqual([]);
+    // With 3 classrooms (120 < 146) it really is impossible, and the pre-check says so.
+    kept = 0;
+    const three = { ...input, rooms: input.rooms.filter((r) => r.type !== "Classroom" || kept++ < 3) };
+    expect(precheck(buildProblem(three)).some((i) => i.rule === "room-supply" && i.severity === "error")).toBe(true);
+  });
+});

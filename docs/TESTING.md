@@ -72,3 +72,27 @@ Playwright drives Microsoft Edge (installed with Windows, so no browser download
 ```bash
 npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:e2e && npm run build
 ```
+
+## Results (2026-10-25)
+
+| Layer | Result |
+|---|---|
+| Typecheck, lint | clean |
+| Unit + property (`npm test`) | **149 passed** in 21 files (79 before this round); property tests cover ~4,800 random cases |
+| Integration (`npm run test:integration`) | **17 passed** in 5 files, stable over 3 runs |
+| End-to-end (`npm run test:e2e`, Edge) | **9 passed** |
+| Performance (`scripts/bench.ts`, `scripts/stress*.ts`) | Demo college (198 classes): 0.1–0.2 s, 0 violations. Tight variants (rooms removed, 5-day week): 0.1–2.4 s; when truly impossible, 0 violations and every unplaced class explained |
+| Production build | succeeds |
+
+### Bugs the tests found (all fixed)
+
+1. **AI rule answers with full day names were refused.** "Tuesday" didn't match a college day named "Tue"; days now match on their first three letters (unit test).
+2. **Slot checks skipped bookings without an id.** A comparison treated "no id" as "the booking being edited" (property test).
+3. **The loser of a booking race saw a raw database error.** Two students booking the same office-hour slot (or the last elective seat) at the same moment: the database correctly let only one through, but the other got Prisma's internal message. It now reads "Someone has just booked that slot." / "Seats changed while you chose." (integration test with truly concurrent users).
+4. **The room pre-check could call a feasible timetable impossible.** With staggered lunches a room offers every slot open in *any* grid, not just the most open grid; the readiness check undercounted (found by the stress benchmark; regression test added).
+
+### Known limitations
+
+- An unknown college URL shows the not-found page with HTTP 200 plus a `noindex` tag (a "soft 404"), because the college is looked up inside a streamed section. Visitors and search engines are handled correctly; only the status code differs.
+- Integration tests fake the sign-in session (Better Auth itself is exercised by the end-to-end tests).
+- End-to-end tests use the local dev database and the dev accounts; they only read, apart from opening and closing the rule-confirmation card.
