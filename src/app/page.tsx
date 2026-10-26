@@ -6,7 +6,7 @@ import { UserMenu } from "@/components/user-menu";
 import { getUser } from "@/lib/access";
 import { prisma } from "@/lib/db";
 import { ROLE_LABEL, type Role } from "@/lib/permissions";
-import { createDemoCopy } from "./actions";
+import { SampleCollegeButton } from "@/components/sample-college-button";
 
 const FEATURES = [
   {
@@ -64,11 +64,15 @@ export default function Home() {
           every constraint, and a plain-English explanation whenever something can&apos;t fit.
         </p>
         <div className="flex flex-wrap gap-3">
-          <form action={createDemoCopy}>
-            <Button size="lg" type="submit">
-              Try it with a sample college <ArrowRight />
-            </Button>
-          </form>
+          <Suspense
+            fallback={
+              <Button size="lg" disabled>
+                Try it with a sample college <ArrowRight />
+              </Button>
+            }
+          >
+            <SampleCollegeButton />
+          </Suspense>
           <Link href="/new" className={buttonVariants({ size: "lg", variant: "outline" })}>
             Set up your college
           </Link>

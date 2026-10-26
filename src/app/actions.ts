@@ -21,7 +21,8 @@ const adminOf = (userId: string) =>
 /** Give the signed-in user their own copy of the demo college, with them as its admin. */
 export async function createDemoCopy() {
   const user = await getUser();
-  if (!user) redirect("/sign-up?next=/");
+  // After signing up they come back and the copy is made at once (see SampleCollegeButton).
+  if (!user) redirect(`/sign-up?next=${encodeURIComponent("/?start=sample")}`);
   const owned = await adminOf(user.id);
   // At the limit, open their newest college instead of creating another.
   if (owned.length >= MAX_COLLEGES_PER_USER) redirect(`/${owned[0].institution.slug}`);
