@@ -648,10 +648,24 @@ model PlacementRound {
   date        DateTime       @db.Date
   startPeriod Int
   endPeriod   Int
-  roomId      String?
-  bookingId   String?
+  /// Rooms the round uses; a large round spreads its students over several.
+  venues      PlacementVenue[]
 
   @@index([driveId])
+}
+
+/// One room booked for a placement round, with the students seated there.
+model PlacementVenue {
+  id        String         @id @default(cuid())
+  roundId   String
+  round     PlacementRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  roomId    String
+  /// Students seated in this room (the round's students split across its rooms by capacity).
+  seats     Int
+  /// The room booking requested for it; null when it couldn't be requested.
+  bookingId String?
+
+  @@unique([roundId, roomId])
 }
 
 // ---------------------------------------------------------------- Elective registration

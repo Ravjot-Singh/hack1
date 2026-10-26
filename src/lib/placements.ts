@@ -16,6 +16,27 @@ export interface RollRow {
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
+ * Seat a round's students across its rooms in proportion to each room's capacity, never more
+ * than a room holds. Rooms come back in the order given; `short` is how many don't fit.
+ */
+export function splitSeats(total: number, rooms: { id: string; capacity: number }[]): { seats: { roomId: string; seats: number }[]; short: number } {
+  const capacity = rooms.reduce((n, r) => n + r.capacity, 0);
+  if (total >= capacity) return { seats: rooms.map((r) => ({ roomId: r.id, seats: r.capacity })), short: total - capacity };
+  const exact = rooms.map((r) => (total * r.capacity) / capacity);
+  const seats = exact.map(Math.floor);
+  // Hand out the remainder by the largest fractions (exact <= capacity, so no room overflows).
+  let left = total - seats.reduce((n, s) => n + s, 0);
+  for (const i of exact.map((_, i) => i).sort((a, b) => exact[b] - seats[b] - (exact[a] - seats[a]))) {
+    if (!left) break;
+    if (seats[i] < rooms[i].capacity) {
+      seats[i]++;
+      left--;
+    }
+  }
+  return { seats: rooms.map((r, i) => ({ roomId: r.id, seats: seats[i] })), short: 0 };
+}
+
+/**
  * Parse pasted "roll number, section" lines (comma, tab or semicolon separated; a header line
  * is skipped). Sections match by name, ignoring case, spaces and dashes.
  */

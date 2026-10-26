@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { deleteDrive, saveDrive } from "@/app/[inst]/placements/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,8 @@ export interface DriveDraft {
   role: string;
   notes: string;
   attending: Attendance[];
-  rounds: { id: string | null; name: string; date: string; start: number; end: number; roomId: string | null }[];
+  /** roomIds: a large round spreads its students over several rooms. */
+  rounds: { id: string | null; name: string; date: string; start: number; end: number; roomIds: string[] }[];
 }
 
 interface Props {
@@ -49,7 +50,7 @@ export function DriveEditor({ slug, drive, sections, departments, rooms, periods
   const [rollsText, setRollsText] = useState("");
   const [dept, setDept] = useState("");
   const [year, setYear] = useState("");
-  const [rounds, setRounds] = useState(drive?.rounds ?? [{ id: null, name: "Aptitude test", date: todayIso(), start: 0, end: 1, roomId: null }]);
+  const [rounds, setRounds] = useState(drive?.rounds ?? [{ id: null, name: "Aptitude test", date: todayIso(), start: 0, end: 1, roomIds: [] as string[] }]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
 
@@ -207,23 +208,16 @@ export function DriveEditor({ slug, drive, sections, departments, rooms, periods
                 ),
               )}
             </select>
-            <select aria-label="Venue" className={cn(selectClass, "max-w-56")} value={r.roomId ?? ""} onChange={(e) => setRound(i, { roomId: e.target.value || null })}>
-              <option value="">No venue needed</option>
-              {rooms.map((room) => (
-                <option key={room.id} value={room.id}>
-                  {room.name} ({room.capacity}){room.capacity < total ? " too small" : ""}
-                </option>
-              ))}
-            </select>
             <Button size="icon-sm" variant="ghost" aria-label={`Remove ${r.name}`} disabled={rounds.length === 1} onClick={() => setRounds((rs) => rs.filter((_, j) => j !== i))}>
               <Trash2 />
             </Button>
+            <RoomPicker rooms={rooms} chosen={r.roomIds} total={total} onChange={(roomIds) => setRound(i, { roomIds })} />
           </div>
         ))}
         <Button
           size="xs"
           variant="outline"
-          onClick={() => setRounds((rs) => [...rs, { id: null, name: "Interviews", date: rs[rs.length - 1]?.date ?? todayIso(), start: 4, end: Math.min(periods.length - 1, 6), roomId: null }])}
+          onClick={() => setRounds((rs) => [...rs, { id: null, name: "Interviews", date: rs[rs.length - 1]?.date ?? todayIso(), start: 4, end: Math.min(periods.length - 1, 6), roomIds: [] }])}
         >
           <Plus /> Add round
         </Button>
@@ -256,6 +250,59 @@ export function DriveEditor({ slug, drive, sections, departments, rooms, periods
         )}
       </div>
       {msg && <p className={cn("text-sm", msg.ok ? "text-muted-foreground" : "text-destructive")}>{msg.text}</p>}
+    </div>
+  );
+}
+
+/**
+ * Rooms for one round. A big test can use several halls and labs at once; the students are
+ * seated across them by capacity, and each room is requested for its share when saved.
+ */
+function RoomPicker({ rooms, chosen, total, onChange }: { rooms: Props["rooms"]; chosen: string[]; total: number; onChange: (ids: string[]) => void }) {
+  const picked = chosen.map((id) => rooms.find((r) => r.id === id)).filter((r): r is Props["rooms"][number] => !!r);
+  const seats = picked.reduce((n, r) => n + r.capacity, 0);
+  const free = rooms.filter((r) => !chosen.includes(r.id));
+  // Largest rooms first (event venues lead the list), until everyone has a seat.
+  const fillToFit = () => {
+    const ids = [...chosen];
+    let n = seats;
+    for (const r of [...free].sort((a, b) => Number(b.isEventVenue) - Number(a.isEventVenue) || b.capacity - a.capacity)) {
+      if (n >= total) break;
+      ids.push(r.id);
+      n += r.capacity;
+    }
+    onChange(ids);
+  };
+  return (
+    <div className="flex w-full flex-wrap items-center gap-1.5 pl-0.5 text-sm">
+      <span className="text-xs text-muted-foreground">Rooms</span>
+      {picked.map((r) => (
+        <span key={r.id} className="inline-flex items-center gap-1 rounded-md border bg-muted/40 py-0.5 pr-0.5 pl-2 text-xs">
+          {r.name} <span className="text-muted-foreground">{r.capacity}</span>
+          <button type="button" aria-label={`Remove ${r.name}`} className="rounded p-0.5 hover:bg-muted" onClick={() => onChange(chosen.filter((id) => id !== r.id))}>
+            <X className="size-3" />
+          </button>
+        </span>
+      ))}
+      <select aria-label="Add a room" className={cn(selectClass, "h-7 max-w-56 text-xs")} value="" onChange={(e) => e.target.value && onChange([...chosen, e.target.value])}>
+        <option value="">{picked.length ? "Add another room…" : "Add a room…"}</option>
+        {free.map((room) => (
+          <option key={room.id} value={room.id}>
+            {room.name} ({room.capacity})
+          </option>
+        ))}
+      </select>
+      {total > 0 && seats < total && free.length > 0 && (
+        <Button size="xs" variant="ghost" onClick={fillToFit}>
+          Fill to fit
+        </Button>
+      )}
+      {picked.length > 0 && (
+        <span className={cn("text-xs", seats < total ? "text-destructive" : "text-muted-foreground")}>
+          {seats} seats for {total} students{seats < total ? `: ${total - seats} short` : ""}
+        </span>
+      )}
+      {!picked.length && <span className="text-xs text-muted-foreground">none: no venue needed</span>}
     </div>
   );
 }

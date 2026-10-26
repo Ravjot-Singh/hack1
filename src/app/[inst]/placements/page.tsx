@@ -28,7 +28,7 @@ export default function PlacementsPage({ params }: PageProps<"/[inst]/placements
   );
 }
 
-const STATUS: Record<string, string> = { PENDING: "venue requested", APPROVED: "venue booked", REJECTED: "venue declined", CANCELLED: "venue cancelled" };
+const STATUS: Record<string, string> = { PENDING: "requested", APPROVED: "booked", REJECTED: "declined", CANCELLED: "cancelled" };
 
 async function Drives({ params }: Pick<PageProps<"/[inst]/placements">, "params">) {
   const { inst: slug } = await params;
@@ -40,7 +40,11 @@ async function Drives({ params }: Pick<PageProps<"/[inst]/placements">, "params"
   const isStudent = m.role === "STUDENT";
 
   const [all, sections, departments, rooms, inst, ctx] = await Promise.all([
-    prisma.placementDrive.findMany({ where: { institutionId }, include: { rounds: { orderBy: [{ date: "asc" }, { startPeriod: "asc" }] } }, orderBy: { createdAt: "desc" } }),
+    prisma.placementDrive.findMany({
+      where: { institutionId },
+      include: { rounds: { orderBy: [{ date: "asc" }, { startPeriod: "asc" }], include: { venues: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
     prisma.section.findMany({ where: { institutionId }, orderBy: [{ year: "asc" }, { name: "asc" }], select: { id: true, name: true, year: true, departmentId: true, size: true } }),
     prisma.department.findMany({ where: { institutionId }, orderBy: { code: "asc" }, select: { id: true, code: true } }),
     prisma.room.findMany({ where: { institutionId }, orderBy: [{ isEventVenue: "desc" }, { capacity: "desc" }], select: { id: true, name: true, capacity: true, isEventVenue: true } }),
@@ -51,7 +55,8 @@ async function Drives({ params }: Pick<PageProps<"/[inst]/placements">, "params"
   const attendingOf = (d: (typeof all)[number]) => d.attending as unknown as Attendance[];
   // Students only see drives their section takes part in.
   const drives = isStudent ? all.filter((d) => attendingOf(d).some((a) => a.sectionId === m.sectionId)) : all;
-  const bookings = await prisma.venueBooking.findMany({ where: { id: { in: drives.flatMap((d) => d.rounds.map((r) => r.bookingId).filter((x): x is string => !!x)) } }, select: { id: true, status: true } });
+  const bookingIds = drives.flatMap((d) => d.rounds.flatMap((r) => r.venues.flatMap((x) => (x.bookingId ? [x.bookingId] : []))));
+  const bookings = await prisma.venueBooking.findMany({ where: { id: { in: bookingIds } }, select: { id: true, status: true } });
   const hits = ctx ? await roundHits(institutionId, ctx, drives.flatMap((d) => d.rounds.map((r) => ({ ...r, attending: attendingOf(d) })))) : new Map();
   const editorSections = sections.map((s) => ({ id: s.id, name: s.name, year: s.year, deptId: s.departmentId, size: s.size }));
   const roomName = (id: string | null) => rooms.find((r) => r.id === id)?.name ?? null;
@@ -92,7 +97,7 @@ async function Drives({ params }: Pick<PageProps<"/[inst]/placements">, "params"
 
             <ul className="space-y-1 text-sm">
               {d.rounds.map((r) => {
-                const status = bookings.find((b) => b.id === r.bookingId)?.status;
+                const seated = r.venues.reduce((n, x) => n + x.seats, 0);
                 return (
                   <li key={r.id} className="flex flex-wrap gap-x-3">
                     <span className="w-40 font-medium">{r.name}</span>
@@ -100,8 +105,16 @@ async function Drives({ params }: Pick<PageProps<"/[inst]/placements">, "params"
                       {pretty(r.date)} · {periodRange(r.startPeriod, r.endPeriod, periods)}
                     </span>
                     <span className="text-muted-foreground">
-                      {roomName(r.roomId) ?? "Venue to be announced"}
-                      {r.roomId && !isStudent ? ` (${status ? STATUS[status] : "venue not requested"})` : ""}
+                      {r.venues.length === 0
+                        ? "Venue to be announced"
+                        : r.venues
+                            .map((x) => {
+                              const status = bookings.find((b) => b.id === x.bookingId)?.status;
+                              const where = `${roomName(x.roomId) ?? "a room"}${r.venues.length > 1 ? ` (${x.seats})` : ""}`;
+                              return isStudent ? where : `${where}: ${status ? STATUS[status] : "not requested"}`;
+                            })
+                            .join(" · ")}
+                      {r.venues.length > 1 && !isStudent && ` · ${seated} of ${total} seated`}
                     </span>
                   </li>
                 );
@@ -171,7 +184,7 @@ async function Drives({ params }: Pick<PageProps<"/[inst]/placements">, "params"
                   role: d.role,
                   notes: d.notes,
                   attending,
-                  rounds: d.rounds.map((r) => ({ id: r.id, name: r.name, date: r.date.toISOString().slice(0, 10), start: r.startPeriod, end: r.endPeriod, roomId: r.roomId })),
+                  rounds: d.rounds.map((r) => ({ id: r.id, name: r.name, date: r.date.toISOString().slice(0, 10), start: r.startPeriod, end: r.endPeriod, roomIds: r.venues.map((x) => x.roomId) })),
                 }}
                 {...editorProps}
               />

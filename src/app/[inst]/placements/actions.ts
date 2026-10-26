@@ -7,7 +7,7 @@ import { addDays, todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
 import { isoDate as isoDateSchema, MAX_DAYS_AHEAD } from "@/lib/dates";
-import { countsFromRolls, parseRolls, type Attendance, type RollRow } from "@/lib/placements";
+import { countsFromRolls, parseRolls, splitSeats, type Attendance, type RollRow } from "@/lib/placements";
 import { loadImpactContext, roundHits } from "@/lib/placements-db";
 import { notify, submitBooking, withdrawBooking } from "@/lib/venue-ops";
 
@@ -30,7 +30,8 @@ const driveInput = z.object({
         date: isoDate,
         start: z.number().int().min(0),
         end: z.number().int().min(0),
-        roomId: z.string().nullable(),
+        /** Rooms for the round; a large one spreads its students over several. */
+        roomIds: z.array(z.string()).max(20).default([]),
       }),
     )
     .min(1, "Add at least one round")
@@ -57,9 +58,9 @@ export async function saveDrive(slug: string, input: unknown): Promise<DriveResu
 
   const [sections, rooms, inst, existing] = await Promise.all([
     prisma.section.findMany({ where: { institutionId }, select: { id: true, name: true, size: true } }),
-    prisma.room.findMany({ where: { institutionId }, select: { id: true } }),
+    prisma.room.findMany({ where: { institutionId }, select: { id: true, name: true, capacity: true } }),
     prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { periods: true } }),
-    v.id ? prisma.placementDrive.findFirst({ where: { id: v.id, institutionId }, include: { rounds: true } }) : null,
+    v.id ? prisma.placementDrive.findFirst({ where: { id: v.id, institutionId }, include: { rounds: { include: { venues: true } } } }) : null,
   ]);
   if (v.id && !existing) return { ok: false, error: "That drive no longer exists." };
   const P = (inst.periods as unknown[]).length;
@@ -85,7 +86,8 @@ export async function saveDrive(slug: string, input: unknown): Promise<DriveResu
   if (!attending.length) return { ok: false, error: "Choose who takes part: sections with a number of students, or paste roll numbers." };
   for (const r of v.rounds) {
     if (r.start > r.end || r.end >= P) return { ok: false, error: `${r.name}: pick a valid run of periods.` };
-    if (r.roomId && !rooms.some((x) => x.id === r.roomId)) return { ok: false, error: `${r.name}: that room no longer exists.` };
+    r.roomIds = [...new Set(r.roomIds)];
+    if (r.roomIds.some((id) => !rooms.some((x) => x.id === id))) return { ok: false, error: `${r.name}: a chosen room no longer exists.` };
     // A new round, or one whose date changes, must be today or later (and within a year).
     const old = existing?.rounds.find((x) => x.id === r.id);
     const moved = !old || old.date.toISOString().slice(0, 10) !== r.date;
@@ -98,44 +100,57 @@ export async function saveDrive(slug: string, input: unknown): Promise<DriveResu
     ? await prisma.placementDrive.update({ where: { id: existing.id }, data: v.rollsText.trim() ? data : { ...data, rolls: existing.rolls as object[] } })
     : await prisma.placementDrive.create({ data: { ...data, institutionId, createdBy: userId } });
 
-  // Rounds: keep, update or remove; (re)request the venue when the room or time changed.
+  // Rounds: keep, update or remove. Each round's students are seated across its rooms by
+  // capacity, and each room is requested for its share. A room keeps its booking while the
+  // round's time and its seats stay the same; otherwise it is withdrawn and requested again.
   const warnings: string[] = [];
   const total = attending.reduce((n, a) => n + a.count, 0);
   const keep = new Set(v.rounds.map((r) => r.id).filter(Boolean));
+  const withdrawAll = async (venues: { bookingId: string | null }[], note: string) => {
+    for (const x of venues) if (x.bookingId) await withdrawBooking(institutionId, x.bookingId, note);
+  };
   for (const old of existing?.rounds ?? []) {
     if (keep.has(old.id)) continue;
-    if (old.bookingId) await withdrawBooking(institutionId, old.bookingId, "The placement round was removed.");
+    await withdrawAll(old.venues, "The placement round was removed.");
     await prisma.placementRound.delete({ where: { id: old.id } });
   }
   const changed: string[] = [];
   const changedIds: string[] = [];
   for (const r of v.rounds) {
     const old = existing?.rounds.find((x) => x.id === r.id);
-    const sameSlot = old && old.date.toISOString().slice(0, 10) === r.date && old.startPeriod === r.start && old.endPeriod === r.end;
-    const sameRoom = old && old.roomId === r.roomId;
-    let bookingId = old?.bookingId ?? null;
-    if (!sameSlot || !sameRoom) {
-      changed.push(r.name);
-      if (bookingId) await withdrawBooking(institutionId, bookingId, "The placement round moved.");
-      bookingId = null;
-      if (r.roomId) {
-        const res = await submitBooking(institutionId, slug, userId, access.member!, {
-          date: r.date,
-          roomId: r.roomId,
-          start: r.start,
-          end: r.end,
-          title: `${v.company}: ${r.name}`,
-          attendees: total,
-          priority: "PLACEMENT",
-          override: false,
-        });
-        if (res.ok) bookingId = res.id;
-        else warnings.push(`${r.name}: ${res.error}`);
-      }
-    }
-    const row = { name: r.name, date: toDate(r.date), startPeriod: r.start, endPeriod: r.end, roomId: r.roomId, bookingId };
+    const sameSlot = !!old && old.date.toISOString().slice(0, 10) === r.date && old.startPeriod === r.start && old.endPeriod === r.end;
+    const row = { name: r.name, date: toDate(r.date), startPeriod: r.start, endPeriod: r.end };
     const saved = old ? await prisma.placementRound.update({ where: { id: old.id }, data: row }) : await prisma.placementRound.create({ data: { ...row, driveId: drive.id } });
-    if (!sameSlot || !sameRoom) changedIds.push(saved.id);
+
+    const plan = splitSeats(total, r.roomIds.map((id) => ({ id, capacity: rooms.find((x) => x.id === id)!.capacity })));
+    if (plan.short > 0) {
+      warnings.push(`${r.name}: the rooms seat ${total - plan.short} of ${total} students; add a room for the other ${plan.short}.`);
+    }
+    const oldVenues = old?.venues ?? [];
+    const kept = oldVenues.filter((x) => sameSlot && plan.seats.some((p) => p.roomId === x.roomId && p.seats === x.seats));
+    const dropped = oldVenues.filter((x) => !kept.includes(x));
+    await withdrawAll(dropped, sameSlot ? "The placement round's rooms changed." : "The placement round moved.");
+    if (dropped.length) await prisma.placementVenue.deleteMany({ where: { id: { in: dropped.map((x) => x.id) } } });
+
+    for (const p of plan.seats) {
+      if (kept.some((x) => x.roomId === p.roomId)) continue;
+      const res = await submitBooking(institutionId, slug, userId, access.member!, {
+        date: r.date,
+        roomId: p.roomId,
+        start: r.start,
+        end: r.end,
+        title: `${v.company}: ${r.name}`,
+        attendees: Math.max(1, p.seats),
+        priority: "PLACEMENT",
+        override: false,
+      });
+      if (!res.ok) warnings.push(`${r.name}, ${rooms.find((x) => x.id === p.roomId)!.name}: ${res.error}`);
+      await prisma.placementVenue.create({ data: { roundId: saved.id, roomId: p.roomId, seats: p.seats, bookingId: res.ok ? res.id : null } });
+    }
+    if (!sameSlot || dropped.length || plan.seats.length !== kept.length) {
+      changed.push(r.name);
+      changedIds.push(saved.id);
+    }
   }
 
   // Tell the teachers whose classes lose students, and the students taking part, when a round is new or moved.
@@ -160,9 +175,9 @@ export async function saveDrive(slug: string, input: unknown): Promise<DriveResu
 export async function deleteDrive(slug: string, id: string): Promise<DriveResult> {
   const access = await officer(slug);
   if (typeof access === "string") return { ok: false, error: access };
-  const drive = await prisma.placementDrive.findFirst({ where: { id, institutionId: access.inst.id }, include: { rounds: true } });
+  const drive = await prisma.placementDrive.findFirst({ where: { id, institutionId: access.inst.id }, include: { rounds: { include: { venues: true } } } });
   if (!drive) return { ok: false, error: "That drive no longer exists." };
-  for (const r of drive.rounds) if (r.bookingId) await withdrawBooking(access.inst.id, r.bookingId, "The placement drive was removed.");
+  for (const r of drive.rounds) for (const x of r.venues) if (x.bookingId) await withdrawBooking(access.inst.id, x.bookingId, "The placement drive was removed.");
   await prisma.placementDrive.delete({ where: { id } });
   revalidatePath(`/${slug}`, "layout");
   return { ok: true, id, warnings: [] };
