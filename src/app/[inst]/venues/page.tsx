@@ -4,6 +4,7 @@ import { PageSkeleton } from "@/components/page-skeleton";
 import { VenueBoard, type BookingView } from "@/components/venues/venue-board";
 import { checkPage } from "@/lib/access";
 import { todayIso } from "@/lib/calendar";
+import { isRealDate } from "@/lib/dates";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
 import { allowedPriorities, canDecide, periodRange } from "@/lib/venues";
@@ -33,7 +34,7 @@ async function Board({ params, searchParams }: Pick<PageProps<"/[inst]/venues">,
   const access = await checkPage(slug, "venue.request");
   if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}/venues`} />;
   // Read the clock only after the request-specific access check (keeps prerendering happy).
-  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayIso();
+  const date = isRealDate(sp.date) ? sp.date : todayIso();
   const institutionId = access.inst.id;
   const member = access.member!;
   const userId = access.user!.id;

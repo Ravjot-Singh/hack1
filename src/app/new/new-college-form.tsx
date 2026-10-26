@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { buildPeriods } from "@/lib/setup/bell";
 import { cn } from "@/lib/utils";
 
-const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 export function NewCollegeForm() {
   const [form, setForm] = useState({

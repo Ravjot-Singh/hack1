@@ -4,6 +4,7 @@ import { NoAccess } from "@/components/no-access";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { checkPage } from "@/lib/access";
 import { resolveDay, todayIso } from "@/lib/calendar";
+import { isRealDate } from "@/lib/dates";
 import { prisma } from "@/lib/db";
 import { canManageRoom, downMap, labTypes } from "@/lib/downtime";
 import { loadConflicts, loadDowntimes, loadMoves } from "@/lib/downtime-db";
@@ -36,7 +37,7 @@ async function Content({ params, searchParams }: Pick<PageProps<"/[inst]/labs">,
   const access = await checkPage(slug, "labs.manage");
   if ("denied" in access) return <NoAccess reason={access.denied} next={`/${slug}/labs`} />;
   // Read the clock only after the request-specific access check (keeps prerendering happy).
-  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayIso();
+  const date = isRealDate(sp.date) ? sp.date : todayIso();
   const institutionId = access.inst.id;
   const m = access.member!;
 

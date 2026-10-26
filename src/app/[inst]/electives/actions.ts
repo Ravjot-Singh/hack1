@@ -6,6 +6,7 @@ import { getAccess, type Access } from "@/lib/access";
 import { todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
+import { isoDate as isoDateSchema } from "@/lib/dates";
 import { loadBasket } from "@/lib/electives-db";
 import { choiceProblem, countChoices, roomWarnings, sizesFromChoices, type ElectiveWindowInfo } from "@/lib/electives";
 
@@ -15,7 +16,7 @@ class Refusal extends Error {}
 export type ElectiveResult = { ok: true; message?: string; warnings?: string[] } | { ok: false; error: string };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
+const isoDate = isoDateSchema();
 
 async function member(slug: string): Promise<Access | string> {
   const access = await getAccess(slug);

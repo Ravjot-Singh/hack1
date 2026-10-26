@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AccessError, requireAction } from "@/lib/access";
 import { prisma } from "@/lib/db";
+import { isoDate as isoDateSchema } from "@/lib/dates";
 
 export type CalendarResult = { ok: true } | { ok: false; error: string };
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
+const isoDate = isoDateSchema();
 const toDate = (s: string) => new Date(`${s}T00:00:00Z`);
 
 async function manage(slug: string) {

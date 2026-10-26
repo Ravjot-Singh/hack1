@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarOff, ChevronLeft, ChevronRight, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addDays, resolveDay, todayIso, type CalendarInfo } from "@/lib/calendar";
+import { isRealDate } from "@/lib/dates";
 import { buildProblem } from "@/lib/solver";
 import type { Assignment, InstituteInput } from "@/lib/solver";
 import { DayList, type DayCover } from "./day-list";
@@ -41,7 +42,7 @@ export function TodayView({ snapshot, assignment, calendar, fixed, versionName, 
   const pathname = usePathname();
   const params = useSearchParams();
   const problem = useMemo(() => buildProblem(snapshot), [snapshot]);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") ?? "") ? params.get("date")! : todayIso();
+  const date = isRealDate(params.get("date")) ? params.get("date")! : todayIso();
   const go = (d: string) => router.replace(`${pathname}?date=${d}`, { scroll: false });
 
   const [view, setView] = useState<ViewKind>(fixed?.view ?? "section");

@@ -6,13 +6,14 @@ import { requireAction, AccessError, type Access } from "@/lib/access";
 import { todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
+import { isoDate as isoDateSchema } from "@/lib/dates";
 import { countsFromRolls, parseRolls, type Attendance, type RollRow } from "@/lib/placements";
 import { loadImpactContext, roundHits } from "@/lib/placements-db";
 import { notify, submitBooking, withdrawBooking } from "@/lib/venue-ops";
 
 export type DriveResult = { ok: true; id: string; warnings: string[] } | { ok: false; error: string };
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
+const isoDate = isoDateSchema();
 const driveInput = z.object({
   id: z.string().nullable(),
   company: z.string().trim().min(2, "Company name?").max(80),

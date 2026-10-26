@@ -6,6 +6,7 @@ import { requireAction, AccessError, type Access } from "@/lib/access";
 import { addDays, todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
+import { isoDate as isoDateSchema } from "@/lib/dates";
 import { canManageRoom, labTypes } from "@/lib/downtime";
 import { loadConflicts } from "@/lib/downtime-db";
 import { loadImpactContext } from "@/lib/placements-db";
@@ -14,7 +15,7 @@ import { periodRange } from "@/lib/venues";
 
 export type LabResult = { ok: true; message?: string } | { ok: false; error: string };
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
+const isoDate = isoDateSchema();
 const pretty = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
 async function manager(slug: string): Promise<Access | string> {

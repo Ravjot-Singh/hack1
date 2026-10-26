@@ -7,10 +7,11 @@ import { suggestSubstitutes } from "@/lib/cover";
 import { loadDay, toDate } from "@/lib/cover-db";
 import { sweepAppointments } from "@/lib/appointments-db";
 import { prisma } from "@/lib/db";
+import { isoDate as isoDateSchema } from "@/lib/dates";
 
 export type AbsenceResult = { ok: true } | { ok: false; error: string };
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const isoDate = isoDateSchema();
 
 /** Who may handle absences for `teacherId`: admins, that teacher's HOD, or the teacher themself. */
 async function allowedFor(slug: string, teacherId: string): Promise<{ access: Access } | { error: string }> {

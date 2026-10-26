@@ -5,6 +5,7 @@ import { sweepAppointments } from "@/lib/appointments-db";
 import { prisma } from "@/lib/db";
 import { AccessError, requireAction } from "@/lib/access";
 import type { Action } from "@/lib/permissions";
+import { sharedEntityName, type ShareView } from "@/lib/share-view";
 import { buildProblem, score, validate } from "@/lib/solver";
 import type { Assignment, InstituteInput } from "@/lib/solver";
 
@@ -103,7 +104,14 @@ export async function createShareLink(
   const inst = check.access.inst;
   const version = await prisma.timetableVersion.findFirst({ where: { id: versionId, institutionId: inst.id } });
   if (!version) return { ok: false, error: "This timetable no longer exists." };
+  // HODs and the Head of Institute share only what is published; a draft is the admin's to share.
+  if (!followPublished && version.status !== "PUBLISHED" && !check.access.can("timetable.editDraft")) {
+    return { ok: false, error: "Only published timetables can be shared. Ask the admin to share this draft." };
+  }
   if (view !== null && (!SHARE_VIEWS.has(view) || !entityId)) return { ok: false, error: "Pick what to share." };
+  if (view !== null && !sharedEntityName(version.snapshot as unknown as InstituteInput, view as ShareView, entityId!)) {
+    return { ok: false, error: "That section, teacher or room isn't in this timetable." };
+  }
   const where = { institutionId: inst.id, versionId: followPublished ? null : versionId, view, entityId: view ? entityId : null };
   const existing = await prisma.shareLink.findFirst({ where });
   if (existing) return { ok: true, token: existing.token };

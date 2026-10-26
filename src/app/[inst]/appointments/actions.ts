@@ -8,6 +8,7 @@ import { BOOKING_WINDOW, dateInfos, loadWorld, sweepAppointments, toBooked, toCo
 import { addDays, todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
+import { isoDate as isoDateSchema } from "@/lib/dates";
 
 /** A booking refused by our own checks; its message is shown as is. */
 class Refusal extends Error {}
@@ -57,7 +58,7 @@ export async function saveOfficeHours(slug: string, input: unknown): Promise<App
 
 const bookInput = z.object({
   teacherId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: isoDateSchema(),
   period: z.number().int().min(0),
   offset: z.number().int().min(0),
   topic: z.string().trim().min(3, "Say briefly what it's about").max(140),

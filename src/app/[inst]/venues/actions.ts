@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAccess, type Access } from "@/lib/access";
 import { todayIso } from "@/lib/calendar";
 import { prisma } from "@/lib/db";
+import { isoDate as isoDateSchema } from "@/lib/dates";
 import { notify, noVenueManager, settleLosers, submitBooking } from "@/lib/venue-ops";
 import { allowedPriorities, canDecide, checkRequest, PRIORITIES, PRIORITY_LABEL, PRIORITY_RANK } from "@/lib/venues";
 import { loadVenueDay } from "@/lib/venues-db";
@@ -12,7 +13,7 @@ import { loadVenueDay } from "@/lib/venues-db";
 export type VenueResult = { ok: true; message?: string } | { ok: false; error: string };
 
 const requestInput = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: isoDateSchema(),
   roomId: z.string().min(1, "Pick a room"),
   start: z.number().int().min(0),
   end: z.number().int().min(0),

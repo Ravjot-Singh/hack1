@@ -15,8 +15,15 @@ export async function acceptInvite(token: string): Promise<{ error: string }> {
     where: { userId_institutionId: { userId: user.id, institutionId: invite.institutionId } },
   });
   if (existing) return { error: "You're already a member of this college. Ask the admin to change your role instead." };
-  await prisma.$transaction([
-    prisma.membership.create({
+  // Claim the invite first: the row lock makes a second person accepting at the same moment
+  // see it already taken, so a single-use link can never create two memberships.
+  const joined = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.invite.updateMany({
+      where: { id: invite.id, acceptedAt: null, expiresAt: { gt: new Date() } },
+      data: { acceptedAt: new Date(), acceptedBy: user.id },
+    });
+    if (claimed.count === 0) return false;
+    await tx.membership.create({
       data: {
         userId: user.id,
         institutionId: invite.institutionId,
@@ -25,8 +32,9 @@ export async function acceptInvite(token: string): Promise<{ error: string }> {
         teacherId: invite.teacherId,
         sectionId: invite.sectionId,
       },
-    }),
-    prisma.invite.update({ where: { id: invite.id }, data: { acceptedAt: new Date(), acceptedBy: user.id } }),
-  ]);
+    });
+    return true;
+  });
+  if (!joined) return { error: "This invite has already been used or was withdrawn." };
   redirect(`/${invite.institution.slug}`);
 }
