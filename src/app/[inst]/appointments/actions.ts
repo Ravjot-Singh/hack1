@@ -64,6 +64,9 @@ const bookInput = z.object({
   topic: z.string().trim().min(3, "Say briefly what it's about").max(140),
 });
 
+/** Bookings one student may make in 24 hours, cancelled ones included. */
+const DAILY_BOOKINGS = 10;
+
 export async function bookAppointment(slug: string, input: unknown): Promise<AppointmentResult> {
   const access = await member(slug);
   if (typeof access === "string") return { ok: false, error: access };
@@ -76,6 +79,9 @@ export async function bookAppointment(slug: string, input: unknown): Promise<App
   const today = todayIso();
   if (v.date < today || v.date > addDays(today, BOOKING_WINDOW - 1)) return { ok: false, error: `You can book up to ${BOOKING_WINDOW} days ahead.` };
 
+  // Booking and cancelling in a loop would flood the teacher with notifications.
+  const madeToday = await prisma.appointment.count({ where: { institutionId, studentId, createdAt: { gte: new Date(Date.now() - 86400_000) } } });
+  if (madeToday >= DAILY_BOOKINGS) return { ok: false, error: `You can make at most ${DAILY_BOOKINGS} bookings a day. Try again tomorrow.` };
   const cfg = await prisma.officeHours.findFirst({ where: { institutionId, teacherId: v.teacherId } });
   if (!cfg) return { ok: false, error: "That teacher doesn't offer office hours." };
   const config = toConfig(cfg);

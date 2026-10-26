@@ -9,6 +9,7 @@ import { aiProvider, interpretWithAi } from "@/lib/rules/ai";
 import { cacheKey, resolveAiRule, type AiRule } from "@/lib/rules/ai-spec";
 import type { RuleDraft } from "@/lib/rules/draft";
 import { toInstituteInput } from "@/lib/setup/convert";
+import { todayIso } from "@/lib/calendar";
 import { loadSetup } from "@/lib/setup/load";
 import { gridLunch, moveLunch } from "@/lib/setup/lunch";
 import {
@@ -77,11 +78,31 @@ class RowsError extends Error {
   }
 }
 
+/** Most rows one table save accepts (a large university has a few thousand offerings). */
+const MAX_ROWS = 5000;
+
 function parseRows<S extends z.ZodTypeAny>(schema: S, rows: unknown): z.output<S>[] {
+  if (Array.isArray(rows) && rows.length > MAX_ROWS) throw new UserError(`At most ${MAX_ROWS} rows can be saved at once.`);
   const res = z.array(schema).safeParse(rows);
   if (!res.success) throw new RowsError(rowIssues(res.error));
   return res.data;
 }
+
+/**
+ * Rows a save deletes: those missing from the submitted rows that the editor had loaded
+ * (`seen`, the ids on their page). A row someone else added after that page loaded is kept, so
+ * saving from a stale page never wipes a colleague's new rows. Without `seen`, every missing
+ * row goes.
+ */
+function removedRows<T extends { id: string }>(existing: T[], rows: { id?: string }[], seen: unknown): T[] {
+  const keep = new Set(rows.map((r) => r.id));
+  const s = z.array(z.string()).max(MAX_ROWS * 4).safeParse(seen);
+  const loaded = s.success ? new Set(s.data) : null;
+  return existing.filter((e) => !keep.has(e.id) && (!loaded || loaded.has(e.id)));
+}
+
+/** "a, b and c" from the non-empty parts. */
+const listOf = (parts: (string | false | 0)[]) => parts.filter(Boolean).join(", ");
 
 function noDuplicates<T>(rows: T[], key: (r: T) => string, what: string) {
   const seen = new Map<string, number>();
@@ -144,7 +165,7 @@ export async function saveRules(slug: string, input: unknown): Promise<SaveResul
 
 // ---------------------------------------------------------------- Departments
 
-export async function saveDepartments(slug: string, input: unknown): Promise<SaveResult> {
+export async function saveDepartments(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(departmentRow, input);
     noDuplicates(rows, (r) => r.code, "code");
@@ -153,17 +174,28 @@ export async function saveDepartments(slug: string, input: unknown): Promise<Sav
       include: { _count: { select: { sections: true, teachers: true, subjects: true, programs: true } } },
     });
     checkIds(rows.map((r) => r.id), new Set(existing.map((d) => d.id)), "department");
-    const keep = new Set(rows.map((r) => r.id));
-    const removed = existing.filter((d) => !keep.has(d.id));
+    const removed = removedRows(existing, rows, seen);
     for (const d of removed) {
       const c = d._count;
-      const uses = [
+      // Rooms, accounts and sign-offs would silently lose their department (and lab assistants
+      // would gain the common labs), so they block the delete too.
+      const [rooms, members, invites, signoffs] = await Promise.all([
+        tx.room.count({ where: { ownerDeptId: d.id } }),
+        tx.membership.count({ where: { departmentId: d.id } }),
+        tx.invite.count({ where: { departmentId: d.id, acceptedAt: null } }),
+        tx.deptSignoff.count({ where: { departmentId: d.id } }),
+      ]);
+      const uses = listOf([
         c.programs && plural(c.programs, "program"),
         c.sections && plural(c.sections, "section"),
         c.teachers && plural(c.teachers, "teacher"),
         c.subjects && plural(c.subjects, "subject"),
-      ].filter(Boolean);
-      if (uses.length) throw new UserError(`Can't delete ${d.code}: it still has ${uses.join(", ")}. Move or delete those first.`);
+        rooms && plural(rooms, "room"),
+        members && plural(members, "member account"),
+        invites && plural(invites, "open invite"),
+        signoffs && plural(signoffs, "timetable sign-off"),
+      ]);
+      if (uses) throw new UserError(`Can't delete ${d.code}: it still has ${uses}. Move or delete those first.`);
     }
     await tx.department.deleteMany({ where: { id: { in: removed.map((d) => d.id) } } });
     // Two passes so swapping codes between rows doesn't hit the unique constraint.
@@ -177,14 +209,13 @@ export async function saveDepartments(slug: string, input: unknown): Promise<Sav
 
 // ---------------------------------------------------------------- Buildings & rooms
 
-export async function saveBuildings(slug: string, input: unknown): Promise<SaveResult> {
+export async function saveBuildings(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(buildingRow, input);
     noDuplicates(rows, (r) => r.name, "building");
     const existing = await tx.building.findMany({ where: { institutionId } });
     checkIds(rows.map((r) => r.id), new Set(existing.map((b) => b.id)), "building");
-    const keep = new Set(rows.map((r) => r.id));
-    await tx.building.deleteMany({ where: { institutionId, id: { in: existing.filter((b) => !keep.has(b.id)).map((b) => b.id) } } });
+    await tx.building.deleteMany({ where: { institutionId, id: { in: removedRows(existing, rows, seen).map((b) => b.id) } } });
     // Create first, then write travel times with temporary ids mapped to real ones.
     const idMap = new Map<string, string>();
     for (const r of rows) {
@@ -201,20 +232,30 @@ export async function saveBuildings(slug: string, input: unknown): Promise<SaveR
   });
 }
 
-export async function saveRooms(slug: string, input: unknown): Promise<SaveResult> {
+export async function saveRooms(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(roomRow, input);
     noDuplicates(rows, (r) => r.name, "room");
     const [existing, buildings, depts] = await Promise.all([
-      tx.room.findMany({ where: { institutionId }, select: { id: true } }),
+      tx.room.findMany({ where: { institutionId }, select: { id: true, name: true } }),
       tx.building.findMany({ where: { institutionId }, select: { id: true } }),
       tx.department.findMany({ where: { institutionId }, select: { id: true } }),
     ]);
     checkIds(rows.map((r) => r.id), new Set(existing.map((x) => x.id)), "room");
     const bIds = new Set(buildings.map((b) => b.id));
     const dIds = new Set(depts.map((d) => d.id));
-    const keep = new Set(rows.map((r) => r.id));
-    await tx.room.deleteMany({ where: { institutionId, id: { in: existing.filter((x) => !keep.has(x.id)).map((x) => x.id) } } });
+    const removed = removedRows(existing, rows, seen);
+    // Deleting a room deletes its bookings and downtime, so upcoming ones block it.
+    const today = new Date(`${todayIso()}T00:00:00Z`);
+    for (const r of removed) {
+      const [bookings, downtime] = await Promise.all([
+        tx.venueBooking.count({ where: { roomId: r.id, status: { in: ["PENDING", "APPROVED"] }, date: { gte: today } } }),
+        tx.roomDowntime.count({ where: { roomId: r.id, toDate: { gte: today } } }),
+      ]);
+      const uses = listOf([bookings && plural(bookings, "upcoming booking"), downtime && plural(downtime, "planned downtime")]);
+      if (uses) throw new UserError(`Can't delete ${r.name}: it has ${uses}. Cancel those first.`);
+    }
+    await tx.room.deleteMany({ where: { institutionId, id: { in: removed.map((x) => x.id) } } });
     for (const r of rows) {
       mustExist(r.buildingId, bIds, "building");
       mustExist(r.ownerDeptId, dIds, "department");
@@ -234,15 +275,14 @@ export async function saveRooms(slug: string, input: unknown): Promise<SaveResul
 
 // ---------------------------------------------------------------- Time grids
 
-export async function saveGrids(slug: string, input: unknown): Promise<SaveResult> {
+export async function saveGrids(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.institute", async (institutionId, tx) => {
     const rows = parseRows(gridRow, input);
     if (!rows.length) throw new UserError("Keep at least one time grid.");
     noDuplicates(rows, (r) => r.name, "grid");
     const existing = await tx.timeGrid.findMany({ where: { institutionId }, include: { _count: { select: { sections: true } } } });
     checkIds(rows.map((r) => r.id), new Set(existing.map((g) => g.id)), "grid");
-    const keep = new Set(rows.map((r) => r.id));
-    const removed = existing.filter((g) => !keep.has(g.id));
+    const removed = removedRows(existing, rows, seen);
     const used = removed.find((g) => g._count.sections);
     if (used) throw new UserError(`Can't delete grid "${used.name}": ${plural(used._count.sections, "section")} still use it.`);
     await tx.timeGrid.deleteMany({ where: { id: { in: removed.map((g) => g.id) } } });
@@ -309,7 +349,7 @@ export async function applyLunchPlan(slug: string, input: unknown): Promise<Save
 
 // ---------------------------------------------------------------- Teachers
 
-export async function saveTeachers(slug: string, input: unknown): Promise<SaveResult> {
+export async function saveTeachers(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(teacherRow, input);
     noDuplicates(rows, (r) => r.name, "teacher");
@@ -323,12 +363,21 @@ export async function saveTeachers(slug: string, input: unknown): Promise<SaveRe
     ]);
     checkIds(rows.map((r) => r.id), new Set(existing.map((t) => t.id)), "teacher");
     const dIds = new Set(depts.map((d) => d.id));
-    const keep = new Set(rows.map((r) => r.id));
-    const removed = existing.filter((t) => !keep.has(t.id));
+    const removed = removedRows(existing, rows, seen);
     const busy = removed.find((t) => t._count.offerings + t._count.labOfferings > 0);
     if (busy) {
       const n = busy._count.offerings + busy._count.labOfferings;
       throw new UserError(`${busy.name} teaches ${plural(n, "class")}; remove them from Allocation first.`);
+    }
+    // Accounts, invites and office hours point at the teacher record without a foreign key.
+    for (const t of removed) {
+      const [members, invites, hours] = await Promise.all([
+        tx.membership.count({ where: { institutionId, teacherId: t.id } }),
+        tx.invite.count({ where: { institutionId, teacherId: t.id, acceptedAt: null } }),
+        tx.officeHours.count({ where: { institutionId, teacherId: t.id } }),
+      ]);
+      const uses = listOf([members && plural(members, "member account"), invites && plural(invites, "open invite"), hours && "office hours"]);
+      if (uses) throw new UserError(`Can't delete ${t.name}: they have ${uses}. Change those in People (or Appointments) first.`);
     }
     await tx.teacher.deleteMany({ where: { id: { in: removed.map((t) => t.id) } } });
     for (const r of rows) {
@@ -351,7 +400,7 @@ export async function saveTeachers(slug: string, input: unknown): Promise<SaveRe
 
 // ---------------------------------------------------------------- Programs & sections
 
-export async function savePrograms(slug: string, input: unknown): Promise<SaveResult> {
+export async function savePrograms(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(programRow, input);
     noDuplicates(rows, (r) => r.name, "program");
@@ -365,8 +414,7 @@ export async function savePrograms(slug: string, input: unknown): Promise<SaveRe
     ]);
     checkIds(rows.map((r) => r.id), new Set(existing.map((p) => p.id)), "program");
     const dIds = new Set(depts.map((d) => d.id));
-    const keep = new Set(rows.map((r) => r.id));
-    const removed = existing.filter((p) => !keep.has(p.id));
+    const removed = removedRows(existing, rows, seen);
     const used = removed.find((p) => p._count.sections);
     if (used) throw new UserError(`Can't delete "${used.name}": it still has ${plural(used._count.sections, "section")}.`);
     await tx.program.deleteMany({ where: { id: { in: removed.map((p) => p.id) } } });
@@ -382,7 +430,7 @@ export async function savePrograms(slug: string, input: unknown): Promise<SaveRe
   });
 }
 
-export async function saveSections(slug: string, input: unknown): Promise<SaveResult> {
+export async function saveSections(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(sectionRow, input);
     noDuplicates(rows, (r) => r.name, "section");
@@ -398,11 +446,20 @@ export async function saveSections(slug: string, input: unknown): Promise<SaveRe
     const programDept = new Map(programs.map((p) => [p.id, p.departmentId]));
     if (scope && rows.some((r) => programDept.get(r.programId) !== scope)) throw new UserError("You can only change your own department's sections.");
     const gIds = new Set(grids.map((g) => g.id));
-    const keep = new Set(rows.map((r) => r.id));
-    const removed = existing.filter((s) => !keep.has(s.id));
+    const removed = removedRows(existing, rows, seen);
     const used = removed.find((s) => s._count.offerings || s._count.baskets);
     if (used) {
       throw new UserError(`Can't delete ${used.name}: it still has ${plural(used._count.offerings, "subject")} in Allocation. Remove those first.`);
+    }
+    // Students' accounts, invites and elective choices point at the section without a foreign key.
+    for (const s of removed) {
+      const [members, invites, choices] = await Promise.all([
+        tx.membership.count({ where: { institutionId, sectionId: s.id } }),
+        tx.invite.count({ where: { institutionId, sectionId: s.id, acceptedAt: null } }),
+        tx.electiveChoice.count({ where: { institutionId, sectionId: s.id } }),
+      ]);
+      const uses = listOf([members && plural(members, "student account"), invites && plural(invites, "open invite"), choices && plural(choices, "elective choice")]);
+      if (uses) throw new UserError(`Can't delete ${s.name}: it has ${uses}. Move those students in People first.`);
     }
     await tx.section.deleteMany({ where: { id: { in: removed.map((s) => s.id) } } });
     for (const r of rows) {
@@ -440,7 +497,7 @@ export async function saveSections(slug: string, input: unknown): Promise<SaveRe
 
 // ---------------------------------------------------------------- Subjects
 
-export async function saveSubjects(slug: string, input: unknown): Promise<SaveResult> {
+export async function saveSubjects(slug: string, input: unknown, seen?: unknown): Promise<SaveResult> {
   return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const rows = parseRows(subjectRow, input);
     noDuplicates(rows, (r) => r.code, "subject code");
@@ -461,8 +518,7 @@ export async function saveSubjects(slug: string, input: unknown): Promise<SaveRe
     }
     checkIds(rows.map((r) => r.id), new Set(existing.map((s) => s.id)), "subject");
     const dIds = new Set(depts.map((d) => d.id));
-    const keep = new Set(rows.map((r) => r.id));
-    const removed = existing.filter((s) => !keep.has(s.id));
+    const removed = removedRows(existing, rows, seen);
     const used = removed.find((s) => s._count.offerings);
     if (used) throw new UserError(`Can't delete ${used.code}: it is allocated to ${plural(used._count.offerings, "section")}. Remove it from Allocation first.`);
     await tx.subject.deleteMany({ where: { id: { in: removed.map((s) => s.id) } } });
@@ -479,7 +535,11 @@ export async function saveSubjects(slug: string, input: unknown): Promise<SaveRe
 
 // ---------------------------------------------------------------- Allocation (offerings + baskets)
 
-export async function saveAllocation(slug: string, input: { baskets: unknown; offerings: unknown }): Promise<SaveResult> {
+export async function saveAllocation(
+  slug: string,
+  input: { baskets: unknown; offerings: unknown },
+  seen?: { baskets?: unknown; offerings?: unknown },
+): Promise<SaveResult> {
   return run(slug, "setup.department", async (institutionId, tx, scope) => {
     const offerings = parseRows(offeringRow, input.offerings);
     const [exO, exB, subjects, sections, teachers] = await Promise.all([
@@ -501,12 +561,22 @@ export async function saveAllocation(slug: string, input: { baskets: unknown; of
     const secIds = new Set(sections.map((s) => s.id));
     const tIds = new Set(teachers.map((t) => t.id));
 
-    // Offerings first (they reference baskets), then baskets.
-    const keepO = new Set(offerings.map((o) => o.id));
-    await tx.offering.deleteMany({ where: { institutionId, id: { in: exO.filter((x) => !keepO.has(x.id)).map((x) => x.id) } } });
+    // Offerings first (they reference baskets), then baskets. Students' elective choices and
+    // registration windows would be deleted with them, so those block the delete.
+    const goneO = removedRows(exO, offerings, seen?.offerings);
+    const chosen = await tx.electiveChoice.count({ where: { institutionId, offeringId: { in: goneO.map((x) => x.id) } } });
+    if (chosen) throw new UserError(`Students have already chosen ${plural(chosen, "elective")} you removed. Close or clear that registration in Electives first.`);
+    await tx.offering.deleteMany({ where: { institutionId, id: { in: goneO.map((x) => x.id) } } });
     const basketIds = new Map<string, string>();
-    const keepB = new Set(baskets.map((b) => b.id));
-    await tx.electiveBasket.deleteMany({ where: { institutionId, id: { in: exB.filter((x) => !keepB.has(x.id)).map((x) => x.id) } } });
+    const goneB = scope ? [] : removedRows(exB, baskets, seen?.baskets);
+    for (const b of goneB) {
+      const [windows, choices] = await Promise.all([
+        tx.electiveWindow.count({ where: { basketId: b.id } }),
+        tx.electiveChoice.count({ where: { basketId: b.id } }),
+      ]);
+      if (windows || choices) throw new UserError(`Can't delete basket "${b.name}": it has ${listOf([windows && "a registration window", choices && plural(choices, "student choice")])}.`);
+    }
+    await tx.electiveBasket.deleteMany({ where: { institutionId, id: { in: goneB.map((x) => x.id) } } });
     for (const b of baskets) {
       for (const s of b.sectionIds) mustExist(s, secIds, "section");
       const sectionsSet = { set: b.sectionIds.map((id) => ({ id })) };

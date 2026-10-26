@@ -6,7 +6,7 @@ import { Copy, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { saveGrids } from "@/app/[inst]/setup/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { newId, type GridRow } from "@/lib/setup/schemas";
+import { idsOf, newId, type GridRow } from "@/lib/setup/schemas";
 import { cn } from "@/lib/utils";
 import { SlotMatrix } from "../slot-matrix";
 import { LunchPanel } from "./lunch-panel";
@@ -50,7 +50,7 @@ export function GridsStep({ slug, data, readOnly }: StepProps) {
 
   const save = () =>
     start(async () => {
-      const res = await saveGrids(slug, grids);
+      const res = await saveGrids(slug, grids, idsOf(data.grids));
       if (res.ok) {
         setDirty(false);
         setMsg({ ok: true, text: "Saved." });

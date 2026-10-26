@@ -128,11 +128,16 @@ export function parseBool(s: string): boolean | null {
 /** Parse CSV text into a table of strings. */
 export function parseCsv(text: string): string[][] {
   const res = Papa.parse<string[]>(text.replace(/^﻿/, ""), { skipEmptyLines: "greedy" });
-  return res.data.map((r) => r.map((c) => String(c ?? "").trim()));
+  // Undo toCsv's formula guard, so an exported file imports back unchanged.
+  return res.data.map((r) => r.map((c) => String(c ?? "").replace(/^'(?=[=+\-@\t\r])/, "").trim()));
 }
 
+/**
+ * CSV text for download. A cell starting with = + - @ would run as a formula when the file is
+ * opened in Excel or Sheets (e.g. a teacher named =HYPERLINK(...)), so it gets a leading '.
+ */
 export function toCsv(table: string[][]): string {
-  return Papa.unparse(table);
+  return Papa.unparse(table, { escapeFormulae: true });
 }
 
 export interface ImportResult<T> {

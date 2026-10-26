@@ -5,6 +5,7 @@ import { sweepAppointments } from "@/lib/appointments-db";
 import { prisma } from "@/lib/db";
 import { AccessError, requireAction } from "@/lib/access";
 import type { Action } from "@/lib/permissions";
+import { withLock } from "@/lib/locks";
 import { sharedEntityName, type ShareView } from "@/lib/share-view";
 import { buildProblem, score, validate } from "@/lib/solver";
 import type { Assignment, InstituteInput } from "@/lib/solver";
@@ -135,9 +136,8 @@ export async function revokeShareLink(slug: string, token: string): Promise<{ ok
 
 export type WorkflowResult = { ok: true } | { ok: false; error: string };
 
-async function versionFor(institutionId: string, versionId: string) {
-  return prisma.timetableVersion.findFirst({ where: { id: versionId, institutionId } });
-}
+/** Every status change of a college's timetables takes this lock (see withLock). */
+const workflowKey = (institutionId: string) => `timetable-workflow:${institutionId}`;
 
 /** Departments whose HOD must sign off: those with at least one HOD account. */
 async function reviewingDepartments(institutionId: string): Promise<string[]> {
@@ -152,18 +152,17 @@ export async function submitForReview(slug: string, versionId: string): Promise<
   const check = await allowed(slug, "timetable.submit");
   if (!check.access) return { ok: false, error: check.error! };
   const inst = check.access.inst;
-  const version = await versionFor(inst.id, versionId);
-  if (!version) return { ok: false, error: "This timetable no longer exists." };
-  if (version.status !== "DRAFT") return { ok: false, error: "Only drafts can be sent for review." };
   const depts = await reviewingDepartments(inst.id);
-  await prisma.$transaction([
-    prisma.deptSignoff.deleteMany({ where: { versionId } }),
-    prisma.timetableVersion.update({
-      where: { id: versionId },
-      // With no HODs to ask, it is ready for the Head of Institute straight away.
-      data: { status: depts.length ? "REVIEW" : "APPROVED", submittedAt: new Date() },
-    }),
-  ]);
+  const error = await withLock(workflowKey(inst.id), async (tx) => {
+    const version = await tx.timetableVersion.findFirst({ where: { id: versionId, institutionId: inst.id } });
+    if (!version) return "This timetable no longer exists.";
+    if (version.status !== "DRAFT") return "Only drafts can be sent for review.";
+    await tx.deptSignoff.deleteMany({ where: { versionId } });
+    // With no HODs to ask, it is ready for the Head of Institute straight away.
+    await tx.timetableVersion.update({ where: { id: versionId }, data: { status: depts.length ? "REVIEW" : "APPROVED", submittedAt: new Date() } });
+    return null;
+  });
+  if (error) return { ok: false, error };
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };
 }
@@ -179,28 +178,33 @@ export async function signOff(
   const { inst, member, user } = check.access;
   const departmentId = member?.departmentId;
   if (!departmentId) return { ok: false, error: "Your HOD account isn't linked to a department; ask the admin." };
-  const version = await versionFor(inst.id, versionId);
-  if (!version || version.status !== "REVIEW") return { ok: false, error: "This timetable isn't waiting for review." };
-  const note = comment.trim().slice(0, 1000);
+  if (decision !== "APPROVED" && decision !== "CHANGES_REQUESTED") return { ok: false, error: "Approve or ask for changes." };
+  const note = String(comment ?? "").trim().slice(0, 1000);
   if (decision === "CHANGES_REQUESTED" && !note) return { ok: false, error: "Say what needs to change." };
 
-  await prisma.deptSignoff.upsert({
-    where: { versionId_departmentId: { versionId, departmentId } },
-    create: { versionId, departmentId, status: decision, comment: note || null, userId: user!.id },
-    update: { status: decision, comment: note || null, userId: user!.id, createdAt: new Date() },
-  });
-  if (decision === "CHANGES_REQUESTED") {
-    await prisma.timetableVersion.update({ where: { id: versionId }, data: { status: "DRAFT" } });
-  } else {
+  // Read the status and every sign-off under the college's lock, so a change request and the
+  // last approval arriving together can't leave it APPROVED with changes outstanding.
+  const error = await withLock(workflowKey(inst.id), async (tx) => {
+    const version = await tx.timetableVersion.findFirst({ where: { id: versionId, institutionId: inst.id } });
+    if (!version || version.status !== "REVIEW") return "This timetable isn't waiting for review.";
+    await tx.deptSignoff.upsert({
+      where: { versionId_departmentId: { versionId, departmentId } },
+      create: { versionId, departmentId, status: decision, comment: note || null, userId: user!.id },
+      update: { status: decision, comment: note || null, userId: user!.id, createdAt: new Date() },
+    });
+    if (decision === "CHANGES_REQUESTED") {
+      await tx.timetableVersion.update({ where: { id: versionId }, data: { status: "DRAFT" } });
+      return null;
+    }
     const [needed, approvals] = await Promise.all([
       reviewingDepartments(inst.id),
-      prisma.deptSignoff.findMany({ where: { versionId, status: "APPROVED" }, select: { departmentId: true } }),
+      tx.deptSignoff.findMany({ where: { versionId, status: "APPROVED" }, select: { departmentId: true } }),
     ]);
     const approved = new Set(approvals.map((a) => a.departmentId));
-    if (needed.every((d) => approved.has(d))) {
-      await prisma.timetableVersion.update({ where: { id: versionId }, data: { status: "APPROVED" } });
-    }
-  }
+    if (needed.every((d) => approved.has(d))) await tx.timetableVersion.update({ where: { id: versionId }, data: { status: "APPROVED" } });
+    return null;
+  });
+  if (error) return { ok: false, error };
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };
 }
@@ -209,11 +213,11 @@ export async function signOff(
 export async function returnToDraft(slug: string, versionId: string): Promise<WorkflowResult> {
   const check = await allowed(slug, "timetable.submit");
   if (!check.access) return { ok: false, error: check.error! };
-  const version = await versionFor(check.access.inst.id, versionId);
-  if (!version || (version.status !== "REVIEW" && version.status !== "APPROVED")) {
-    return { ok: false, error: "Only timetables in review or approved can go back to draft." };
-  }
-  await prisma.timetableVersion.update({ where: { id: versionId }, data: { status: "DRAFT" } });
+  const institutionId = check.access.inst.id;
+  const moved = await withLock(workflowKey(institutionId), (tx) =>
+    tx.timetableVersion.updateMany({ where: { id: versionId, institutionId, status: { in: ["REVIEW", "APPROVED"] } }, data: { status: "DRAFT" } }),
+  );
+  if (!moved.count) return { ok: false, error: "Only timetables in review or approved can go back to draft." };
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };
 }
@@ -222,16 +226,16 @@ export async function publish(slug: string, versionId: string): Promise<Workflow
   const check = await allowed(slug, "timetable.publish");
   if (!check.access) return { ok: false, error: check.error! };
   const { inst, user } = check.access;
-  const version = await versionFor(inst.id, versionId);
-  if (!version) return { ok: false, error: "This timetable no longer exists." };
-  if (version.status !== "APPROVED") return { ok: false, error: "Only approved timetables can be published." };
-  await prisma.$transaction([
-    prisma.timetableVersion.updateMany({ where: { institutionId: inst.id, status: "PUBLISHED" }, data: { status: "ARCHIVED" } }),
-    prisma.timetableVersion.update({
-      where: { id: versionId },
-      data: { status: "PUBLISHED", publishedAt: new Date(), publishedBy: user!.id },
-    }),
-  ]);
+  // One status change per college at a time, so two publishes can't both win.
+  const error = await withLock(workflowKey(inst.id), async (tx) => {
+    const version = await tx.timetableVersion.findFirst({ where: { id: versionId, institutionId: inst.id } });
+    if (!version) return "This timetable no longer exists.";
+    if (version.status !== "APPROVED") return "Only approved timetables can be published.";
+    await tx.timetableVersion.updateMany({ where: { institutionId: inst.id, status: "PUBLISHED" }, data: { status: "ARCHIVED" } });
+    await tx.timetableVersion.update({ where: { id: versionId }, data: { status: "PUBLISHED", publishedAt: new Date(), publishedBy: user!.id } });
+    return null;
+  });
+  if (error) return { ok: false, error };
   // A new timetable can take away free periods students had booked.
   await sweepAppointments(inst.id, slug);
   revalidatePath(`/${slug}`, "layout");

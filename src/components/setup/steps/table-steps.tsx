@@ -19,6 +19,7 @@ import { exportTable } from "@/lib/setup/import";
 import {
   DESIGNATIONS,
   designationLimits,
+  idsOf,
   type BuildingRow,
   type DepartmentRow,
   type ProgramRow,
@@ -65,7 +66,7 @@ export function DepartmentsStep({ slug, data, readOnly }: StepProps) {
       rows={data.departments}
       columns={columns}
       newRow={() => ({ name: "", code: "" })}
-      onSave={(rows) => saveDepartments(slug, rows)}
+      onSave={(rows) => saveDepartments(slug, rows, idsOf(data.departments))}
       readOnly={readOnly}
       importer={{ entity: "departments", noun: "departments", lookups, exportTable: () => exportTable("departments", data, lookups) }}
     />
@@ -99,7 +100,7 @@ export function RoomsStep({ slug, data, readOnly }: StepProps) {
         rows={data.buildings}
         columns={buildingCols}
         newRow={() => ({ name: "", travelMinutes: {} })}
-        onSave={(rows) => saveBuildings(slug, rows)}
+        onSave={(rows) => saveBuildings(slug, rows, idsOf(data.buildings))}
         readOnly={readOnly}
         importer={{ entity: "buildings", noun: "buildings", lookups, exportTable: () => exportTable("buildings", data, lookups) }}
       />
@@ -115,7 +116,7 @@ export function RoomsStep({ slug, data, readOnly }: StepProps) {
         rows={data.rooms}
         columns={roomCols}
         newRow={() => ({ name: "", type: "Classroom", capacity: 60, buildingId: null, ownerDeptId: null, isEventVenue: false })}
-        onSave={(rows) => saveRooms(slug, rows)}
+        onSave={(rows) => saveRooms(slug, rows, idsOf(data.rooms))}
         readOnly={readOnly}
         importer={{ entity: "rooms", noun: "rooms", lookups, exportTable: () => exportTable("rooms", data, lookups) }}
       />
@@ -193,7 +194,7 @@ function TravelMatrix({ slug, buildings, readOnly }: { slug: string; buildings: 
             disabled={pending}
             onClick={() =>
               start(async () => {
-                const res = await saveBuildings(slug, rows);
+                const res = await saveBuildings(slug, rows, idsOf(buildings));
                 setMsg(res.ok ? "Saved." : res.error);
                 if (res.ok) router.refresh();
               })
@@ -256,7 +257,7 @@ export function TeachersStep({ slug, data, readOnly, scope }: StepProps) {
           unavailable: [],
           prefs: [],
         })}
-        onSave={(rows) => saveTeachers(slug, rows)}
+        onSave={(rows) => saveTeachers(slug, rows, idsOf(scope ? data.teachers.filter((t) => t.deptId === scope) : data.teachers))}
         readOnly={readOnly}
         importer={{ entity: "teachers", noun: "teachers", lookups, exportTable: () => exportTable("teachers", data, lookups) }}
         rowActions={(row, update) => {
@@ -398,7 +399,7 @@ export function SectionsStep({ slug, data, readOnly, scope }: StepProps) {
         rows={ownPrograms}
         columns={programCols}
         newRow={() => ({ name: "", deptId: scope ?? data.departments[0]?.id ?? "" })}
-        onSave={(rows) => savePrograms(slug, rows)}
+        onSave={(rows) => savePrograms(slug, rows, idsOf(ownPrograms))}
         readOnly={readOnly}
         importer={{ entity: "programs", noun: "programs", lookups, exportTable: () => exportTable("programs", data, lookups) }}
       />
@@ -416,7 +417,7 @@ export function SectionsStep({ slug, data, readOnly, scope }: StepProps) {
             gridId: data.grids[0]?.id ?? "",
             batchCount: 2,
           })}
-          onSave={(rows) => saveSections(slug, rows)}
+          onSave={(rows) => saveSections(slug, rows, idsOf(scope ? data.sections.filter((s) => ownProgramIds.has(s.programId)) : data.sections))}
           readOnly={readOnly}
           importer={{ entity: "sections", noun: "sections", lookups, exportTable: () => exportTable("sections", data, lookups) }}
         />
@@ -479,7 +480,7 @@ export function SubjectsStep({ slug, data, readOnly, scope }: StepProps) {
           labRoomType: "Classroom",
           labBlockLen: 2,
         })}
-        onSave={(rows) => saveSubjects(slug, rows)}
+        onSave={(rows) => saveSubjects(slug, rows, idsOf(scope ? data.subjects.filter((x) => x.deptId === scope) : data.subjects))}
         readOnly={readOnly}
         importer={{ entity: "subjects", noun: "subjects", lookups, exportTable: () => exportTable("subjects", data, lookups) }}
       />

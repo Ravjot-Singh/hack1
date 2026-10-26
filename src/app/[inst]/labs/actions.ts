@@ -133,7 +133,9 @@ export async function moveClass(slug: string, input: unknown): Promise<LabResult
 
   const key = { institutionId_date_lessonId: { institutionId, date: toDate(v.date), lessonId: v.lessonId } };
   if (!v.roomId) {
-    await prisma.roomMove.deleteMany({ where: { institutionId, date: toDate(v.date), lessonId: v.lessonId } });
+    const undone = await prisma.roomMove.deleteMany({ where: { institutionId, date: toDate(v.date), lessonId: v.lessonId } });
+    // Nothing was moved, so there is nothing to tell anyone (and no way to spam them).
+    if (!undone.count) return { ok: true };
   } else {
     const day = (await loadConflicts(institutionId, ctx, v.date, 1))[0];
     const clash = day?.open.find((c) => c.lessonId === v.lessonId);

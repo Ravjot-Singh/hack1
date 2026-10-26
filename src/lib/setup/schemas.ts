@@ -5,10 +5,14 @@ import { z } from "zod";
 
 export const isNewId = (id: string | undefined) => !id || id.startsWith("new:");
 export const newId = () => `new:${Math.random().toString(36).slice(2, 10)}`;
+/** Ids of the saved rows a page loaded; sent with a save so it only deletes rows the editor saw. */
+export const idsOf = (rows: { id?: string }[]) => rows.flatMap((r) => (r.id && !isNewId(r.id) ? [r.id] : []));
 
 const name = z.string().trim().min(1, "Name is required").max(120);
 const count = (label: string, max = 100) => z.coerce.number().int(`${label} must be a whole number`).min(0).max(max);
-const slot = z.tuple([z.number().int().min(0), z.number().int().min(0)]);
+/** [day, period]; a week has at most 7 days of 24 periods. */
+const slot = z.tuple([z.number().int().min(0).max(6), z.number().int().min(0).max(23)]);
+const WEEK_SLOTS = 7 * 24;
 
 export const departmentRow = z.object({
   id: z.string().optional(),
@@ -35,12 +39,12 @@ export const roomRow = z.object({
 export const gridRow = z.object({
   id: z.string().optional(),
   name,
-  open: z.array(z.array(z.boolean())),
+  open: z.array(z.array(z.boolean()).max(24)).max(7),
 });
 
 export const slotPref = z.object({
-  day: z.number().int().min(0),
-  period: z.number().int().min(0),
+  day: z.number().int().min(0).max(6),
+  period: z.number().int().min(0).max(23),
   value: z.enum(["PREFER", "AVOID"]),
 });
 
@@ -52,8 +56,8 @@ export const teacherRow = z.object({
   designation: z.string().trim().min(1, "Designation is required").max(60),
   maxPerDay: count("Max per day", 12).pipe(z.number().min(1, "Max per day must be at least 1")),
   maxPerWeek: count("Max per week", 80).pipe(z.number().min(1, "Max per week must be at least 1")),
-  unavailable: z.array(slot).default([]),
-  prefs: z.array(slotPref).default([]),
+  unavailable: z.array(slot).max(WEEK_SLOTS).default([]),
+  prefs: z.array(slotPref).max(WEEK_SLOTS).default([]),
 });
 
 export const programRow = z.object({
@@ -94,24 +98,24 @@ export const subjectRow = z
 export const basketRow = z.object({
   id: z.string().optional(),
   name,
-  sectionIds: z.array(z.string()).min(2, "A basket needs at least two sections"),
+  sectionIds: z.array(z.string()).min(2, "A basket needs at least two sections").max(500),
 });
 
 export const offeringRow = z.object({
   id: z.string().optional(),
   subjectId: z.string().min(1, "Subject is required"),
-  sectionIds: z.array(z.string()).min(1, "Pick at least one section"),
-  teacherIds: z.array(z.string()).default([]),
-  labTeacherIds: z.array(z.string()).default([]),
+  sectionIds: z.array(z.string()).min(1, "Pick at least one section").max(500),
+  teacherIds: z.array(z.string()).max(50).default([]),
+  labTeacherIds: z.array(z.string()).max(50).default([]),
   batchwiseLab: z.boolean().default(true),
   splitLabBatches: z.boolean().default(false),
   basketId: z.string().nullable().default(null),
-  expectedSize: z.coerce.number().int().min(1).nullable().default(null),
+  expectedSize: z.coerce.number().int().min(1).max(100000).nullable().default(null),
 });
 
 export const instituteSettings = z.object({
   name,
-  days: z.array(z.string().trim().min(1)).min(1, "Pick at least one working day").max(7),
+  days: z.array(z.string().trim().min(1).max(20)).min(1, "Pick at least one working day").max(7),
   periods: z
     .array(z.object({ start: z.string().regex(/^\d{1,2}:\d{2}$/), end: z.string().regex(/^\d{1,2}:\d{2}$/) }))
     .min(1, "Add at least one period")

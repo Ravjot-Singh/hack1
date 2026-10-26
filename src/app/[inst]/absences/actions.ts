@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAccess, type Access } from "@/lib/access";
-import { suggestSubstitutes } from "@/lib/cover";
+import { affectedLessons, suggestSubstitutes } from "@/lib/cover";
 import { loadDay, toDate } from "@/lib/cover-db";
 import { sweepAppointments } from "@/lib/appointments-db";
 import { prisma } from "@/lib/db";
@@ -96,6 +96,14 @@ export async function removeAbsence(slug: string, absenceId: string): Promise<Ab
   return { ok: true };
 }
 
+/** Why this visitor can't arrange cover at all, before any lookup reveals what runs when. */
+function coverDenied(access: Access): string | null {
+  if (access.publicDemo) return "The shared demo is read-only.";
+  if (!access.user || !access.member) return "Please sign in as a member of this college.";
+  if (!access.can("absence.manage")) return "Only admins and HODs arrange cover.";
+  return null;
+}
+
 const coverInput = z.object({
   date: isoDate,
   lessonId: z.string().min(1),
@@ -109,13 +117,17 @@ export async function setCover(slug: string, input: unknown): Promise<AbsenceRes
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const v = parsed.data;
   const access = await getAccess(slug);
+  // Who may arrange cover at all is settled before loading anything about the day.
+  const denied = coverDenied(access);
+  if (denied) return { ok: false, error: denied };
   const day = await loadDay(access.inst.id, v.date);
   if (day.kind !== "ok" || !day.ctx) return { ok: false, error: "There are no classes on that date." };
   const lesson = day.problem.lessons.find((l) => l.id === v.lessonId);
   if (!lesson || day.assignment[lesson.id]?.day !== day.ctx.dayIndex) return { ok: false, error: "That class doesn't run on that date." };
-  // Permission is judged on the class's absent teacher.
-  const absentTeacher = lesson.teacherIds.find((t) => day.absences.some((a) => a.teacherId === t));
-  if (!absentTeacher) return { ok: false, error: "Mark the teacher absent first." };
+  // Permission is judged on the class's absent teacher, who must be away for this class's periods.
+  const ctx = day.ctx;
+  const absentTeacher = lesson.teacherIds.find((t) => affectedLessons(ctx, t).some((x) => x.lesson.id === lesson.id));
+  if (!absentTeacher) return { ok: false, error: "Mark the teacher absent for this class's period first." };
   const check = await allowedFor(slug, absentTeacher);
   if ("error" in check || !check.access.can("absence.manage")) {
     return { ok: false, error: "error" in check ? check.error : "Only admins and HODs arrange cover." };
@@ -168,6 +180,8 @@ export async function setCover(slug: string, input: unknown): Promise<AbsenceRes
 
 export async function clearCover(slug: string, date: string, lessonId: string): Promise<AbsenceResult> {
   const access = await getAccess(slug);
+  const denied = coverDenied(access);
+  if (denied) return { ok: false, error: denied };
   if (!isoDate.safeParse(date).success) return { ok: false, error: "Bad date." };
   const day = await loadDay(access.inst.id, date);
   const lesson = day.kind === "ok" ? day.problem.lessons.find((l) => l.id === lessonId) : undefined;

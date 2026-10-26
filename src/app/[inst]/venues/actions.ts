@@ -6,7 +6,8 @@ import { getAccess, type Access } from "@/lib/access";
 import { todayIso } from "@/lib/calendar";
 import { prisma } from "@/lib/db";
 import { isoDate as isoDateSchema } from "@/lib/dates";
-import { notify, noVenueManager, settleLosers, submitBooking } from "@/lib/venue-ops";
+import { withLock } from "@/lib/locks";
+import { notify, noVenueManager, settleLosers, submitBooking, venueKey } from "@/lib/venue-ops";
 import { allowedPriorities, canDecide, checkRequest, PRIORITIES, PRIORITY_LABEL, PRIORITY_RANK } from "@/lib/venues";
 import { loadVenueDay } from "@/lib/venues-db";
 
@@ -22,6 +23,9 @@ const requestInput = z.object({
   priority: z.enum(PRIORITIES as [string, ...string[]]),
   override: z.boolean().default(false),
 });
+
+/** Open (undecided) room requests one person may have at a time. */
+const MAX_PENDING = 10;
 
 async function memberAccess(slug: string): Promise<Access | string> {
   const access = await getAccess(slug);
@@ -40,6 +44,9 @@ export async function requestBooking(slug: string, input: unknown): Promise<Venu
   const member = access.member!;
   const priority = v.priority as (typeof PRIORITIES)[number];
   if (!allowedPriorities(member.role).includes(priority)) return { ok: false, error: `Your role can't book at "${PRIORITY_LABEL[priority]}" priority.` };
+  // Each pending request notifies every approver, so one person can't keep piling them up.
+  const waiting = await prisma.venueBooking.count({ where: { institutionId: access.inst.id, requestedBy: access.user!.id, status: "PENDING" } });
+  if (waiting >= MAX_PENDING) return { ok: false, error: `You already have ${MAX_PENDING} requests waiting for a decision. Wait for those first.` };
   const res = await submitBooking(access.inst.id, slug, access.user!.id, member, { ...v, priority });
   if (!res.ok) return res;
   revalidatePath(`/${slug}`, "layout");
@@ -58,22 +65,31 @@ export async function decideBooking(slug: string, id: string, approve: boolean, 
   const link = `/${slug}/venues?date=${date}`;
   const when = `${b.room.name} on ${date}`;
 
-  if (!approve) {
-    await prisma.venueBooking.update({ where: { id }, data: { status: "REJECTED", decidedBy: access.user!.id, decidedAt: new Date(), note: note.trim() || null } });
-    await notify(institutionId, [b.requestedBy], `Your booking "${b.title}" (${when}) was declined${note.trim() ? `: ${note.trim()}` : "."}`, link);
+  const text = typeof note === "string" ? note.trim().slice(0, 300) : "";
+  // Only a request still pending is decided, and only once, even if two approvers click together.
+  const decide = (status: "APPROVED" | "REJECTED") =>
+    prisma.venueBooking.updateMany({ where: { id, institutionId, status: "PENDING" }, data: { status, decidedBy: access.user!.id, decidedAt: new Date(), note: text || null } });
+
+  if (approve !== true) {
+    if (!(await decide("REJECTED")).count) return { ok: false, error: "That request was already decided." };
+    await notify(institutionId, [b.requestedBy], `Your booking "${b.title}" (${when}) was declined${text ? `: ${text}` : "."}`, link);
   } else {
     if (date < todayIso()) return { ok: false, error: "That date has passed." };
-    const day = await loadVenueDay(institutionId, date);
-    const req = { roomId: b.roomId, start: b.startPeriod, end: b.endPeriod, priority: b.priority, attendees: b.attendees };
-    const check = checkRequest(req, b.room, day.use, day.bookings, b.id, day.down);
-    if (check.outOfService.length) return { ok: false, error: `${b.room.name} is out of service then (${check.outOfService[0].reason}).` };
-    if (check.classes.length && !b.classOverride) return { ok: false, error: `A class now uses ${b.room.name} then (${check.classes[0].label}).` };
-    if (check.blockers.length) return { ok: false, error: `${b.room.name} is already booked then for "${check.blockers[0].title}".` };
-    const above = check.competing.find((x) => PRIORITY_RANK[x.priority] > PRIORITY_RANK[b.priority]);
-    if (above) return { ok: false, error: `A higher-priority request ("${above.title}", ${PRIORITY_LABEL[above.priority]}) wants the same time. Decide that one first.` };
-    await prisma.venueBooking.update({ where: { id }, data: { status: "APPROVED", decidedBy: access.user!.id, decidedAt: new Date(), note: note.trim() || null } });
+    const error = await withLock(venueKey(b.roomId, date), async () => {
+      const day = await loadVenueDay(institutionId, date);
+      const req = { roomId: b.roomId, start: b.startPeriod, end: b.endPeriod, priority: b.priority, attendees: b.attendees };
+      const check = checkRequest(req, b.room, day.use, day.bookings, b.id, day.down);
+      if (check.outOfService.length) return `${b.room.name} is out of service then (${check.outOfService[0].reason}).`;
+      if (check.classes.length && !b.classOverride) return `A class now uses ${b.room.name} then (${check.classes[0].label}).`;
+      if (check.blockers.length) return `${b.room.name} is already booked then for "${check.blockers[0].title}".`;
+      const above = check.competing.find((x) => PRIORITY_RANK[x.priority] > PRIORITY_RANK[b.priority]);
+      if (above) return `A higher-priority request ("${above.title}", ${PRIORITY_LABEL[above.priority]}) wants the same time. Decide that one first.`;
+      if (!(await decide("APPROVED")).count) return "That request was already decided.";
+      await settleLosers(institutionId, slug, b.id);
+      return null;
+    });
+    if (error) return { ok: false, error };
     await notify(institutionId, [b.requestedBy], `Your booking "${b.title}" (${when}) was approved.`, link);
-    await settleLosers(institutionId, slug, b.id);
   }
   revalidatePath(`/${slug}`, "layout");
   return { ok: true };

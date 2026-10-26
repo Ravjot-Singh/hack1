@@ -11,7 +11,7 @@ import { buildPeriods, DEFAULT_RULES, defaultGrid, slugify } from "@/lib/setup/b
 const suffix = () => Math.random().toString(36).slice(2, 6);
 
 /** Each new college is a few thousand rows; one account may run this many (demo copies included). */
-export const MAX_COLLEGES_PER_USER = 5;
+const MAX_COLLEGES_PER_USER = 5;
 const WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 /** The colleges this user administers, newest first. */

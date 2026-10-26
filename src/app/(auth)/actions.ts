@@ -5,14 +5,9 @@ import { redirect } from "next/navigation";
 import { APIError } from "better-auth/api";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { safeNext } from "@/lib/safe-next";
 
 export type AuthState = { error?: string; email?: string; name?: string } | undefined;
-
-/** Only allow redirects back into this app. */
-function safeNext(next: FormDataEntryValue | null): string {
-  const s = typeof next === "string" ? next : "";
-  return s.startsWith("/") && !s.startsWith("//") ? s : "/";
-}
 
 const signUpSchema = z.object({
   name: z.string().trim().min(2, "Enter your name").max(80),

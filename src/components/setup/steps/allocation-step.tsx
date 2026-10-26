@@ -10,7 +10,7 @@ import { lookupsOf, toInstituteInput } from "@/lib/setup/convert";
 import { downloadCsv } from "@/lib/setup/files";
 import { exportTable, mergeRows, naturalKey } from "@/lib/setup/import";
 import { teacherLoads } from "@/lib/setup/loads";
-import { newId, type BasketRow, type OfferingRow } from "@/lib/setup/schemas";
+import { idsOf, newId, type BasketRow, type OfferingRow } from "@/lib/setup/schemas";
 import { cn } from "@/lib/utils";
 import { EditableTable, type Column } from "../editable-table";
 import { ImportDialog } from "../import-dialog";
@@ -33,6 +33,8 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
   const [, startImport] = useTransition();
 
   const inSection = (o: OfferingRow) => o.sectionIds.includes(sectionId);
+  // What this page loaded: a save only deletes rows among these, never ones added since by someone else.
+  const seenNow = { offerings: idsOf(data.offerings), baskets: idsOf(data.baskets) };
   const sectionRows = useMemo(() => data.offerings.filter((o) => o.sectionIds.includes(sectionId)), [data.offerings, sectionId]);
 
   const options = useMemo(() => {
@@ -95,7 +97,7 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
     startImport(async () => {
       const baskets = mergeBaskets(data.baskets, result.baskets ?? []);
       const offerings = mergeRows("allocation", data.offerings, result.rows as unknown as OfferingRow[], mode);
-      const res = await saveAllocation(slug, { baskets, offerings });
+      const res = await saveAllocation(slug, { baskets, offerings }, seenNow);
       setImportMsg(res.ok ? `Imported and saved ${result.rows.length} allocation rows.` : res.error);
       if (res.ok) router.refresh();
     });
@@ -164,10 +166,11 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
           })}
           onRowsChange={setDraft}
           onSave={async (rows) => {
-            const res = await saveAllocation(slug, {
-              baskets: data.baskets,
-              offerings: [...data.offerings.filter((o) => !inSection(o)), ...rows],
-            });
+            const res = await saveAllocation(
+              slug,
+              { baskets: data.baskets, offerings: [...data.offerings.filter((o) => !inSection(o)), ...rows] },
+              seenNow,
+            );
             if (res.ok) setDraft(null);
             // Row errors refer to the full list; show them as one message instead.
             return res.ok ? res : { ok: false, error: res.error };
@@ -198,7 +201,7 @@ export function AllocationStep({ slug, data: fullData, readOnly, scope }: StepPr
               const b = baskets.find((x) => x.id === o.basketId);
               return b ? { ...o, sectionIds: b.sectionIds } : o;
             });
-            return saveAllocation(slug, { baskets, offerings });
+            return saveAllocation(slug, { baskets, offerings }, seenNow);
           }}
           readOnly={readOnly || !!scope}
           emptyText="No elective baskets."

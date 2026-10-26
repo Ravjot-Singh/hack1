@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { safeNext } from "@/lib/safe-next";
 import { Loader2 } from "lucide-react";
 import { signIn, signUp } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 
 export function AuthForm({ mode, google }: { mode: "sign-in" | "sign-up"; google: boolean }) {
-  const next = useSearchParams().get("next") ?? "/";
+  const next = safeNext(useSearchParams().get("next"));
   const [state, action, pending] = useActionState(mode === "sign-in" ? signIn : signUp, undefined);
   const other = mode === "sign-in" ? "sign-up" : "sign-in";
 

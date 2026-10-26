@@ -22,6 +22,15 @@ describe("slot specs", () => {
   });
 });
 
+describe("CSV export safety", () => {
+  it("defuses cells that a spreadsheet would run as formulas, and imports them back unchanged", () => {
+    const table = [["name", "note"], ['=HYPERLINK("http://evil.example","Click")', "+1"], ["@SUM(A1)", "-2"], ["Dr. Priya Nair", "08:30"]];
+    const csv = toCsv(table);
+    expect(csv).not.toMatch(/(^|,)"?[=+\-@]/m);
+    expect(parseCsv(csv)).toEqual(table);
+  });
+});
+
 describe("helpers", () => {
   it("splits batches evenly", () => {
     expect(splitBatches(65, 2)).toEqual([{ name: "G1", size: 33 }, { name: "G2", size: 32 }]);

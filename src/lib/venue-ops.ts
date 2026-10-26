@@ -4,6 +4,7 @@
 import { todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
+import { withLock } from "@/lib/locks";
 import type { Member } from "@/lib/permissions";
 import { alternatives, approverLabel, canDecide, checkRequest, periodRange, PRIORITY_LABEL, PRIORITY_RANK, type Priority, type Room } from "@/lib/venues";
 import { loadVenueDay } from "@/lib/venues-db";
@@ -47,6 +48,14 @@ export type SubmitResult = { ok: true; id: string; approved: boolean; message: s
  */
 export async function submitBooking(institutionId: string, slug: string, userId: string, member: Member, v: BookingRequest): Promise<SubmitResult> {
   if (v.date < todayIso()) return { ok: false, error: "That date has passed." };
+  // Check and write one request at a time per room and date, so two can't both be approved.
+  return withLock(venueKey(v.roomId, v.date), () => submitLocked(institutionId, slug, userId, member, v));
+}
+
+/** Every check-then-write on a room's bookings for a date takes this lock (see withLock). */
+export const venueKey = (roomId: string, date: string) => `venue:${roomId}:${date}`;
+
+async function submitLocked(institutionId: string, slug: string, userId: string, member: Member, v: BookingRequest): Promise<SubmitResult> {
   const day = await loadVenueDay(institutionId, v.date);
   const room = day.rooms.find((r) => r.id === v.roomId);
   if (!room) return { ok: false, error: "That room no longer exists." };
