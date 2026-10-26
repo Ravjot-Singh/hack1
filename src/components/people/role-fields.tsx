@@ -16,7 +16,7 @@ export interface PeopleLookups {
 }
 
 const ROLES = Object.keys(ROLE_LABEL) as Role[];
-export const selectClass = "h-8 rounded-md border bg-background px-2 text-sm";
+export const selectClass = "h-8 w-full rounded-md border bg-background px-2 text-sm sm:w-auto";
 
 /** Role picker plus the department / teacher / section link that role needs. */
 export function RoleFields({ value, onChange, departments, teachers, sections }: { value: RoleLink; onChange: (v: RoleLink) => void } & PeopleLookups) {

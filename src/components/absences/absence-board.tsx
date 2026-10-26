@@ -85,7 +85,7 @@ export function AbsenceBoard({ slug, date, dayNote, hasClasses, periods, markabl
             <UserMinus className="size-4" /> Mark absent
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <select aria-label="Teacher" className="h-8 min-w-52 rounded-md border bg-background px-2" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
+            <select aria-label="Teacher" className="h-8 w-full rounded-md border bg-background px-2 sm:w-auto sm:min-w-52" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
               {markable.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -108,7 +108,7 @@ export function AbsenceBoard({ slug, date, dayNote, hasClasses, periods, markabl
                   P{i + 1}
                 </button>
               ))}
-            <input aria-label="Reason" placeholder="Reason (optional)" className="h-8 w-48 rounded-md border bg-background px-2" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <input aria-label="Reason" placeholder="Reason (optional)" className="h-8 w-full rounded-md border bg-background px-2 sm:w-48" value={reason} onChange={(e) => setReason(e.target.value)} />
             <Button
               size="sm"
               disabled={pending || !teacherId || (!wholeDay && !picked.length)}

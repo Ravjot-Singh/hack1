@@ -242,13 +242,13 @@ function InviteForm({ slug, inviteUrl, onCreated, ...lk }: PeopleLookups & { slu
   return (
     <>
       <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-auto">
           <Label htmlFor="inv-name">Name</Label>
-          <Input id="inv-name" className="h-8 w-52" required value={name} onChange={(e) => setName(e.target.value)} />
+          <Input id="inv-name" className="h-8 w-full sm:w-52" required value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-auto">
           <Label htmlFor="inv-email">Email (optional)</Label>
-          <Input id="inv-email" type="email" className="h-8 w-56" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input id="inv-email" type="email" className="h-8 w-full sm:w-56" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <RoleFields
           value={link}

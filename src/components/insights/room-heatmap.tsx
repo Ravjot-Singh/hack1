@@ -106,7 +106,8 @@ export function RoomHeatmap({ snapshot, assignment, versions, versionId }: Props
         </p>
         <div className="overflow-x-auto rounded-lg border p-2" onMouseLeave={() => setHover(null)}>
           <div className="grid min-w-[48rem] gap-y-[2px] text-xs" style={{ gridTemplateColumns: cols }}>
-            <div />
+            {/* Room names stay put while the week scrolls sideways on narrow screens. */}
+            <div className="sticky left-0 z-10 bg-background" />
             {snapshot.days.map((d) => (
               <div key={d} className="px-[1px] text-center font-medium text-muted-foreground">
                 {d}
@@ -114,7 +115,7 @@ export function RoomHeatmap({ snapshot, assignment, versions, versionId }: Props
             ))}
             <div className="text-right text-muted-foreground">Use</div>
 
-            <div className="truncate pr-2 font-medium">All rooms</div>
+            <div className="sticky left-0 z-10 truncate bg-background pr-2 font-medium">All rooms</div>
             {snapshot.days.map((d, di) => (
               <div key={d} className="grid gap-[2px] px-[3px]" style={{ gridTemplateColumns: `repeat(${P}, minmax(0, 1fr))` }}>
                 {Array.from({ length: P }, (_, p) => {
@@ -137,7 +138,7 @@ export function RoomHeatmap({ snapshot, assignment, versions, versionId }: Props
 
             {rooms.map((r) => (
               <div key={r.id} className="contents">
-                <div className="truncate pr-2" title={`${r.name} · ${r.type}`}>
+                <div className="sticky left-0 z-10 truncate bg-background pr-2" title={`${r.name} · ${r.type}`}>
                   {r.name}
                 </div>
                 {snapshot.days.map((d, di) => (

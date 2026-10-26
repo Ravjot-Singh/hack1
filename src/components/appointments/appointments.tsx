@@ -132,9 +132,9 @@ export function OfficeHoursEditor({
           <span className="text-xs text-muted-foreground">Bookings per student per week</span>
           <Input className="w-24" type="number" min={1} max={10} value={perWeek} onChange={(e) => setPerWeek(Math.max(1, Math.min(10, Number(e.target.value) || 1)))} />
         </label>
-        <label className="grid gap-1">
+        <label className="grid w-full gap-1 sm:w-auto">
           <span className="text-xs text-muted-foreground">Where</span>
-          <Input className="w-56" value={location} maxLength={80} placeholder="e.g. Staff room, Block B" onChange={(e) => setLocation(e.target.value)} />
+          <Input className="w-full sm:w-56" value={location} maxLength={80} placeholder="e.g. Staff room, Block B" onChange={(e) => setLocation(e.target.value)} />
         </label>
         <Button
           disabled={pending}
@@ -179,7 +179,7 @@ export function BookingPanel({
       <label className="flex flex-wrap items-center gap-2 text-sm">
         Teacher
         <select
-          className={cn(selectClass, "min-w-64")}
+          className={cn(selectClass, "w-full sm:w-auto sm:min-w-64")}
           value={pickedId ?? ""}
           onChange={(e) => {
             setChosen(null);
@@ -222,7 +222,7 @@ export function BookingPanel({
             </div>
             <div className="text-xs text-muted-foreground">with {teachers.find((t) => t.id === pickedId)?.name}</div>
           </div>
-          <Input className="w-72" value={topic} maxLength={140} placeholder="What do you want to discuss?" onChange={(e) => setTopic(e.target.value)} />
+          <Input className="w-full sm:w-72" value={topic} maxLength={140} placeholder="What do you want to discuss?" onChange={(e) => setTopic(e.target.value)} />
           <Button
             disabled={pending || topic.trim().length < 3}
             onClick={() =>

@@ -95,7 +95,8 @@ export function TimetableGrid({ problem, assignment, view, entityId, edit }: Pro
         className="grid min-w-[56rem] text-xs print:min-w-0"
         style={{ gridTemplateColumns: `4.5rem repeat(${P}, minmax(0, 1fr))` }}
       >
-        <div className="border-b bg-muted/50" />
+        {/* The day column stays put while periods scroll sideways on tablets. */}
+        <div className="sticky left-0 z-20 border-b bg-muted" />
         {input.periods.map((p, i) => (
           <div key={i} className="border-b border-l bg-muted/50 px-1 py-1.5 text-center">
             <div className="font-medium">P{i + 1}</div>
@@ -109,7 +110,7 @@ export function TimetableGrid({ problem, assignment, view, entityId, edit }: Pro
           const dayEntries = entries.filter((e) => e.day === d).sort((a, b) => a.period - b.period);
           return (
             <div key={day} className="contents">
-              <div className="flex items-center border-b px-2 font-medium">{day}</div>
+              <div className="sticky left-0 z-20 flex items-center border-b bg-background px-2 font-medium">{day}</div>
               <div
                 className="relative border-b border-l"
                 style={{ gridColumn: `2 / span ${P}` }}

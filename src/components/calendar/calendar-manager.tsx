@@ -84,11 +84,11 @@ export function CalendarManager({ slug, calendar }: { slug: string; calendar: Ca
               </select>
             </div>
           )}
-          <div className="space-y-1">
+          <div className="w-full space-y-1 sm:w-auto">
             <Label htmlFor="sp-label">Label</Label>
             <Input
               id="sp-label"
-              className="h-8 w-48"
+              className="h-8 w-full sm:w-48"
               placeholder={form.kind === "HOLIDAY" ? "Diwali" : form.kind === "EXAM" ? "Mid-semester exams" : "Compensatory day"}
               value={form.label}
               onChange={(e) => setForm({ ...form, label: e.target.value })}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { STEPS, type StepSlug } from "@/lib/setup/steps";
@@ -10,8 +11,17 @@ export function StepRail({ counts }: { counts: Partial<Record<StepSlug, number>>
   const path = usePathname();
   const [, slug] = path.split("/");
   const current = path.split("/")[3];
+  const rail = useRef<HTMLElement>(null);
+  // On phones the rail scrolls sideways: bring the current step into view.
+  useEffect(() => {
+    const el = rail.current?.querySelector<HTMLElement>("[aria-current=step]");
+    const box = rail.current;
+    if (el && box && box.scrollWidth > box.clientWidth) {
+      box.scrollLeft += el.getBoundingClientRect().left - box.getBoundingClientRect().left - (box.clientWidth - el.offsetWidth) / 2;
+    }
+  }, [current]);
   return (
-    <nav aria-label="Setup steps" className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0">
+    <nav ref={rail} aria-label="Setup steps" className="-mx-4 overflow-x-auto px-4 [scrollbar-width:thin] lg:mx-0 lg:overflow-visible lg:px-0">
       <ol className="flex gap-1 lg:sticky lg:top-4 lg:flex-col">
         {STEPS.map((s, i) => {
           const active = current === s.slug;

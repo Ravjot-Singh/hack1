@@ -150,7 +150,8 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
         <p className="text-sm text-muted-foreground">{past ? "This date has passed." : "Click a free cell to start a request; click another cell in the same row to cover several periods."}</p>
         <div className="overflow-x-auto rounded-lg border p-2">
           <div className="grid min-w-[40rem] gap-[2px] text-xs" style={{ gridTemplateColumns: cols }}>
-            <div />
+            {/* The room column stays put while the periods scroll sideways on narrow screens. */}
+            <div className="sticky left-0 z-10 bg-background" />
             {periods.map((p, i) => (
               <div key={i} className="text-center text-muted-foreground">
                 <div className="font-medium">P{i + 1}</div>
@@ -159,7 +160,7 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
             ))}
             {shown.map((r) => (
               <div key={r.id} className="contents">
-                <div className="truncate pr-2 leading-8" title={`${r.name} · ${r.type} · ${r.capacity} seats${r.ownerCode ? ` · ${r.ownerCode}` : ""}`}>
+                <div className="sticky left-0 z-10 truncate bg-background pr-2 leading-8" title={`${r.name} · ${r.type} · ${r.capacity} seats${r.ownerCode ? ` · ${r.ownerCode}` : ""}`}>
                   <span className="font-medium">{r.name}</span> <span className="text-muted-foreground">{r.capacity}</span>
                 </div>
                 {periods.map((_, p) => {
@@ -210,9 +211,9 @@ export function VenueBoard({ slug, date, dayNote, published, periods, rooms, use
             Book {room.name} · {periodRange(sel.start, sel.end, periods)}
           </h2>
           <div className="flex flex-wrap items-end gap-3 text-sm">
-            <label className="grid gap-1">
+            <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-xs text-muted-foreground">What for</span>
-              <Input className="w-64" value={title} maxLength={120} placeholder="e.g. Guest lecture on AI" onChange={(e) => setTitle(e.target.value)} />
+              <Input className="w-full sm:w-64" value={title} maxLength={120} placeholder="e.g. Guest lecture on AI" onChange={(e) => setTitle(e.target.value)} />
             </label>
             <label className="grid gap-1">
               <span className="text-xs text-muted-foreground">People</span>
@@ -340,7 +341,7 @@ function Decision({ b, pending, onDecide }: { b: BookingView; pending: boolean; 
           {b.roomName} · {b.date} · {b.when} · {b.attendees} people · asked by {b.requester}
         </div>
       </div>
-      <Input className="h-8 w-48" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <Input className="h-8 w-full sm:w-48" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
       <Button size="sm" disabled={pending} onClick={() => onDecide(true, note)}>
         <Check /> Approve
       </Button>

@@ -12,12 +12,12 @@ export default function InstituteLayout({ children, params }: LayoutProps<"/[ins
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="border-b bg-background/80 backdrop-blur print:hidden">
-        <div className="mx-auto flex min-h-14 max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
+        <div className="mx-auto flex min-h-14 max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 sm:gap-x-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold" aria-label="Scheduling Optimizer home">
             <CalendarRange className="size-5" />
-            <span className="hidden sm:inline">Scheduling Optimizer</span>
+            <span className="hidden lg:inline">Scheduling Optimizer</span>
           </Link>
-          <span className="text-muted-foreground">/</span>
+          <span className="hidden text-muted-foreground sm:inline">/</span>
           <Suspense fallback={<span className="h-4 w-48 animate-pulse rounded bg-muted" />}>
             <Header params={params} />
           </Suspense>
@@ -48,13 +48,16 @@ async function Header({ params }: Pick<LayoutProps<"/[inst]">, "params">) {
   if (access.can("people.manage")) items.push({ href: `/${slug}/people`, label: "People" });
   return (
     <>
-      <span className="truncate font-medium">{access.inst.name}</span>
-      {access.member && <span className="hidden rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground md:inline">{ROLE_LABEL[access.member.role]}</span>}
+      {/* Takes the free space and shortens long names, so the top row never wraps. */}
+      <span className="min-w-0 flex-1 truncate font-medium" title={access.inst.name}>
+        {access.inst.name}
+      </span>
+      {access.member && <span className="hidden shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground md:inline">{ROLE_LABEL[access.member.role]}</span>}
+      {access.member && access.user && <NotificationBell slug={slug} userId={access.user.id} institutionId={access.inst.id} />}
+      <UserMenu next={`/${slug}`} />
       <Suspense>
         <InstNav items={access.user || access.publicDemo ? items : []} />
       </Suspense>
-      {access.member && access.user && <NotificationBell slug={slug} userId={access.user.id} institutionId={access.inst.id} />}
-      <UserMenu next={`/${slug}`} />
     </>
   );
 }

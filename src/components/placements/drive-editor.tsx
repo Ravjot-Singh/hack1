@@ -80,13 +80,13 @@ export function DriveEditor({ slug, drive, sections, departments, rooms, periods
   return (
     <div className="space-y-5 rounded-lg border p-4">
       <div className="flex flex-wrap gap-3">
-        <label className="grid gap-1 text-sm">
+        <label className="grid w-full gap-1 text-sm sm:w-auto">
           <span className="text-xs text-muted-foreground">Company</span>
-          <Input className="w-56" value={company} maxLength={80} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Infosys" />
+          <Input className="w-full sm:w-56" value={company} maxLength={80} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Infosys" />
         </label>
-        <label className="grid gap-1 text-sm">
+        <label className="grid w-full gap-1 text-sm sm:w-auto">
           <span className="text-xs text-muted-foreground">Role</span>
-          <Input className="w-56" value={role} maxLength={80} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Systems Engineer" />
+          <Input className="w-full sm:w-56" value={role} maxLength={80} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Systems Engineer" />
         </label>
         <label className="grid flex-1 gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Notes for students</span>
