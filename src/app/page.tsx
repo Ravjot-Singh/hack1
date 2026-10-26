@@ -8,6 +8,9 @@ import { prisma } from "@/lib/db";
 import { ROLE_LABEL, type Role } from "@/lib/permissions";
 import { SampleCollegeButton } from "@/components/sample-college-button";
 
+// Copying the sample college writes a few thousand rows; give that action time to finish.
+export const maxDuration = 60;
+
 const FEATURES = [
   {
     icon: ShieldCheck,

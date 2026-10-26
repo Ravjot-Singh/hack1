@@ -7,6 +7,9 @@ import { checkPage, getAccess } from "@/lib/access";
 import { getSetup } from "@/lib/setup/load";
 import { stepCounts } from "@/lib/setup/steps";
 
+// "Make my own copy" writes a whole college; give that action time to finish.
+export const maxDuration = 60;
+
 export default function SetupLayout({ children, params }: LayoutProps<"/[inst]/setup">) {
   return (
     <div className="space-y-4">
