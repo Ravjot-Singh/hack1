@@ -10,6 +10,9 @@ export const auth = betterAuth({
     minPasswordLength: 8,
     autoSignIn: true,
   },
+  // Limits on sign-in/sign-up attempts (on in production), counted in the database so they hold
+  // across serverless instances.
+  rateLimit: { storage: "database" },
   // Google sign-in switches on when its keys are configured.
   socialProviders:
     process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET

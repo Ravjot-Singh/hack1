@@ -23,6 +23,13 @@ describe("lab downtime", () => {
     expect([...(downMap(d, "2026-10-27", P).get("r2")?.keys() ?? [])]).toEqual([2, 3]);
   });
 
+  it("won't let one subject's lab type turn classrooms into labs", () => {
+    // An HOD sets their own subject's lab room type to "Classroom".
+    const tricked = [...input.subjects, { ...input.subjects[0], P: 1, labRoomType: "Classroom" }];
+    expect(labTypes(tricked).has("Classroom")).toBe(false);
+    expect(labTypes(tricked).has("Computer Lab")).toBe(true);
+  });
+
   it("scopes lab assistants to their department's labs", () => {
     const labs = labTypes(input.subjects);
     expect(labs.has("Computer Lab")).toBe(true);

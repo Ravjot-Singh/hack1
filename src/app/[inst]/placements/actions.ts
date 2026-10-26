@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAction, AccessError, type Access } from "@/lib/access";
-import { todayIso } from "@/lib/calendar";
+import { addDays, todayIso } from "@/lib/calendar";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
-import { isoDate as isoDateSchema } from "@/lib/dates";
+import { isoDate as isoDateSchema, MAX_DAYS_AHEAD } from "@/lib/dates";
 import { countsFromRolls, parseRolls, type Attendance, type RollRow } from "@/lib/placements";
 import { loadImpactContext, roundHits } from "@/lib/placements-db";
 import { notify, submitBooking, withdrawBooking } from "@/lib/venue-ops";
@@ -72,18 +72,25 @@ export async function saveDrive(slug: string, input: unknown): Promise<DriveResu
     rolls = res.rows;
     attending = countsFromRolls(rolls);
   } else {
-    attending = v.attending.filter((a) => a.count > 0);
-    for (const a of attending) {
-      const s = sections.find((x) => x.id === a.sectionId);
-      if (!s) return { ok: false, error: "A chosen section no longer exists." };
-      if (a.count > s.size) return { ok: false, error: `${s.name} has only ${s.size} students.` };
-    }
+    // A section listed twice counts once, with its numbers added, before checking its size.
+    const merged = new Map<string, number>();
+    for (const a of v.attending) if (a.count > 0) merged.set(a.sectionId, (merged.get(a.sectionId) ?? 0) + a.count);
+    attending = [...merged].map(([sectionId, count]) => ({ sectionId, count }));
+  }
+  for (const a of attending) {
+    const s = sections.find((x) => x.id === a.sectionId);
+    if (!s) return { ok: false, error: "A chosen section no longer exists." };
+    if (a.count > s.size) return { ok: false, error: `${s.name} has only ${s.size} students.` };
   }
   if (!attending.length) return { ok: false, error: "Choose who takes part: sections with a number of students, or paste roll numbers." };
   for (const r of v.rounds) {
     if (r.start > r.end || r.end >= P) return { ok: false, error: `${r.name}: pick a valid run of periods.` };
     if (r.roomId && !rooms.some((x) => x.id === r.roomId)) return { ok: false, error: `${r.name}: that room no longer exists.` };
-    if (!existing?.rounds.some((x) => x.id === r.id) && r.date < todayIso()) return { ok: false, error: `${r.name}: that date has passed.` };
+    // A new round, or one whose date changes, must be today or later (and within a year).
+    const old = existing?.rounds.find((x) => x.id === r.id);
+    const moved = !old || old.date.toISOString().slice(0, 10) !== r.date;
+    if (moved && r.date < todayIso()) return { ok: false, error: `${r.name}: that date has passed.` };
+    if (moved && r.date > addDays(todayIso(), MAX_DAYS_AHEAD)) return { ok: false, error: `${r.name}: plan at most a year ahead.` };
   }
 
   const data = { company: v.company, role: v.role, notes: v.notes, attending: attending as object[], rolls: rolls as object[] };

@@ -53,9 +53,10 @@ export async function addSpecialDays(slug: string, input: unknown): Promise<Cale
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const v = parsed.data;
   const last = v.until && v.until > v.date ? v.until : v.date;
+  // Measure the range before walking it, so a huge range is refused without looping over it.
+  if ((toDate(last).getTime() - toDate(v.date).getTime()) / 86400_000 >= 120) return { ok: false, error: "That range is too long (max 120 days)." };
   const dates: string[] = [];
   for (let d = toDate(v.date); d <= toDate(last); d.setUTCDate(d.getUTCDate() + 1)) dates.push(d.toISOString().slice(0, 10));
-  if (dates.length > 120) return { ok: false, error: "That range is too long (max 120 days)." };
   const institutionId = m.access.inst.id;
   const data = { kind: v.kind, label: v.label, followsDay: v.kind === "FOLLOWS" ? v.followsDay : null };
   await prisma.$transaction(

@@ -64,25 +64,30 @@ Found and fixed while verifying: `src/app/actions.ts` exported a constant. A `"u
 file may export only async functions, so this broke the home page. Typecheck and tests can't
 catch it, so `npx next build` belongs in the pre-commit checks.
 
-### Low (open, for later)
+### Low (all fixed)
 
-- **Lab types (HOD):** an HOD can make any room type count as a "lab" through a subject's lab room type. That widens what lab assistants can mark out of service.
-- **Baskets (HOD):** an HOD can move an offering into or out of an elective basket through `basketId`.
-- **Share links:** no owner and no expiry. Any HOD can revoke any link.
-- **QR poster:** the poster builds its URL from `X-Forwarded-Host`. Take the base URL from config instead.
-- **Edits on stale data:** `saveEdits` validates against the version's snapshot, not the current setup data.
-- **Old covers hidden after republish:** re-saving a cover keeps its old version id, so the cover can disappear from view after a republish.
-- **Unvalidated `solveMs` (admin only):** `saveVersion` stores whatever value the client sends.
-- **Placement drives:** placement head counts can exceed section sizes when a section is listed twice. An existing round can be moved into the past.
-- **Far-future bookings:** venue bookings accept dates far in the future.
-- **Calendar loop (admin only):** `addSpecialDays` loops over the whole range before applying its 120-day cap.
-- **Unchecked setup values:** time grids aren't checked to be exactly days × periods. Period times like 99:99 are accepted. Custom rule slots aren't pruned when the week shrinks (this over-constrains but never lets a clash through).
-- **Empty elective basket:** an HOD can configure a basket that has no sections.
-- **Accounts and invites (accepted, by design):**
-  - Sign-up doesn't verify email.
-  - Better Auth's rate limit is in-memory, so it is weak on serverless.
-  - Sign-up reveals whether an email is registered.
-  - Invites aren't tied to an email address: anyone holding the link joins. This is by design for WhatsApp sharing, so treat admin invite links as passwords.
+These are kept as tests in [`tests/integration/attacks-low.test.ts`](../tests/integration/attacks-low.test.ts)
+and `src/lib/downtime.test.ts`.
+
+| Finding | Fix |
+|---|---|
+| **Lab types (HOD):** an HOD could make classrooms count as "labs" through their subject's lab room type. That widened what lab assistants may take out of service. | A room type that any subject uses for theory is never a lab type. |
+| **Baskets (HOD):** an HOD could move a subject into or out of an elective basket through `basketId`. | An HOD save must keep each offering's basket as stored. Only the admin changes baskets. |
+| **Share links:** they had no owner, so any HOD could revoke any link, including a printed QR poster. | Links record `createdBy`. Only the creator, an admin or the Head of Institute may revoke one. Links end when revoked, not on a timer, so printed posters keep working. |
+| **QR poster:** it built its address from `X-Forwarded-Host`, which a client or proxy could forge. | The address comes from `BETTER_AUTH_URL`. The Host header is only a local fallback. |
+| **Edits on stale data:** `saveEdits` checked hand edits only against the draft's own snapshot. A deleted room or new unavailability could slip through to publishing. | Edits are also checked against the current setup data. If the setup has changed, the admin is told to generate again. |
+| **Old covers hidden after republish:** a re-saved cover kept its old version id and vanished after a republish. | The update sets the current version. |
+| **Unvalidated `solveMs`:** `saveVersion` stored whatever value the client sent. | It is clamped to a whole number of milliseconds, at most one hour. |
+| **Placement drives and bookings:** a section listed twice in a drive passed the size check. An existing round could be moved into the past. Bookings and rounds accepted any future date. | Counts per section are added up first. A changed round date must be today or later. Both are limited to a year ahead. |
+| **Calendar loop:** `addSpecialDays` walked the whole range before applying its 120-day cap. | The range is measured first. |
+| **Week shape:** grids weren't checked to be days × periods. Period times like 99:99, or ending before they start, were accepted. Custom-rule slots outside a smaller week wrapped onto the next day. | Grids are stored as exactly days × periods. Periods must be real times, in order, with no overlap. Out-of-week slots are pruned on save and ignored by the engine. |
+| **Electives:** an HOD could configure a basket with no sections, and `applyCounts` took any mode. | Empty baskets are admin-only. The mode must be `registered` or `scaled`. |
+| **Rate limit:** Better Auth kept its rate limit in memory, so each serverless instance had its own count. | It is stored in the database (`RateLimit` table) and is on in production. |
+
+### Accepted (by design)
+
+- **Email isn't verified at sign-up, and sign-up says when an email is already registered.** Verifying needs an email service, which the app deliberately doesn't use. An account alone grants nothing until it accepts an admin's invite.
+- **Invites aren't tied to an email address.** Anyone holding the link joins with its role, which is what makes WhatsApp sharing work. Treat admin and Head of Institute invite links like passwords, and revoke unused ones in People.
 
 ## Checks that held
 

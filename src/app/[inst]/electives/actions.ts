@@ -31,7 +31,8 @@ type Basket = NonNullable<Awaited<ReturnType<typeof loadBasket>>>;
 function mayConfigure(access: Access, basket: Basket): boolean {
   if (!access.can("electives.configure")) return false;
   const m = access.member!;
-  return m.role === "INSTITUTE_ADMIN" || (!!m.departmentId && basket.sections.every((s) => s.departmentId === m.departmentId));
+  // A basket with no sections belongs to no department, so only the admin may configure it.
+  return m.role === "INSTITUTE_ADMIN" || (!!m.departmentId && basket.sections.length > 0 && basket.sections.every((s) => s.departmentId === m.departmentId));
 }
 
 const windowInfo = (w: NonNullable<Basket["window"]>): ElectiveWindowInfo => ({ opensOn: iso(w.opensOn), closesOn: iso(w.closesOn), seats: w.seats as Record<string, number> });
@@ -134,6 +135,7 @@ export async function withdrawChoice(slug: string, basketId: string): Promise<El
 export async function applyCounts(slug: string, basketId: string, mode: "registered" | "scaled"): Promise<ElectiveResult> {
   const access = await member(slug);
   if (typeof access === "string") return { ok: false, error: access };
+  if (mode !== "registered" && mode !== "scaled") return { ok: false, error: "Pick registered or scaled counts." };
   const institutionId = access.inst.id;
   const basket = await loadBasket(institutionId, basketId);
   if (!basket?.window) return { ok: false, error: "Set up registration first." };

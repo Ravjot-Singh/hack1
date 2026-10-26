@@ -13,4 +13,7 @@ export function isRealDate(s: unknown): s is string {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-export const isoDate = (message = "Pick a valid date") => z.string().refine(isRealDate, message);
+/** How far ahead bookings and placement rounds may be planned. */
+export const MAX_DAYS_AHEAD = 366;
+
+export const isoDate =(message = "Pick a valid date") => z.string().refine(isRealDate, message);

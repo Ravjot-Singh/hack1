@@ -1,7 +1,8 @@
 // Server-side venue booking operations shared by the Venues page and placement drives.
 // Callers check who may act; these apply the booking rules and send notifications.
 
-import { todayIso } from "@/lib/calendar";
+import { addDays, todayIso } from "@/lib/calendar";
+import { MAX_DAYS_AHEAD } from "@/lib/dates";
 import { toDate } from "@/lib/cover-db";
 import { prisma } from "@/lib/db";
 import { withLock } from "@/lib/locks";
@@ -48,6 +49,7 @@ export type SubmitResult = { ok: true; id: string; approved: boolean; message: s
  */
 export async function submitBooking(institutionId: string, slug: string, userId: string, member: Member, v: BookingRequest): Promise<SubmitResult> {
   if (v.date < todayIso()) return { ok: false, error: "That date has passed." };
+  if (v.date > addDays(todayIso(), MAX_DAYS_AHEAD)) return { ok: false, error: "Rooms can be booked at most a year ahead." };
   // Check and write one request at a time per room and date, so two can't both be approved.
   return withLock(venueKey(v.roomId, v.date), () => submitLocked(institutionId, slug, userId, member, v));
 }

@@ -7,6 +7,7 @@ import { AccessError, requireAction } from "@/lib/access";
 import type { Action } from "@/lib/permissions";
 import { withLock } from "@/lib/locks";
 import { sharedEntityName, type ShareView } from "@/lib/share-view";
+import { loadInstituteInput } from "@/lib/institute";
 import { buildProblem, score, validate } from "@/lib/solver";
 import type { Assignment, InstituteInput } from "@/lib/solver";
 
@@ -46,6 +47,14 @@ export async function saveEdits(
 
   const { violations, unscheduled } = validate(problem, clean);
   if (violations.length) return { ok: false, error: `Not saved: ${violations[0].message}` };
+  // Also against today's data: a room deleted or a teacher made unavailable since this draft was
+  // generated must not slip through to review and publishing.
+  const current = buildProblem(await loadInstituteInput(inst.id));
+  const live = new Set(current.lessons.map((l) => l.id));
+  const gone = Object.keys(clean).filter((id) => !live.has(id));
+  if (gone.length) return { ok: false, error: `Not saved: the setup has changed since this draft was made (${gone.length} class(es) no longer exist). Generate a new timetable.` };
+  const now = validate(current, clean).violations;
+  if (now.length) return { ok: false, error: `Not saved: with the current setup data, ${now[0].message} Generate a new timetable or fix the setup.` };
   const before = (version.stats as { unscheduled?: number }).unscheduled ?? 0;
   if (unscheduled.length > before) {
     return { ok: false, error: `Not saved: ${unscheduled.length - before} class(es) would be left without a slot.` };
@@ -116,15 +125,20 @@ export async function createShareLink(
   const where = { institutionId: inst.id, versionId: followPublished ? null : versionId, view, entityId: view ? entityId : null };
   const existing = await prisma.shareLink.findFirst({ where });
   if (existing) return { ok: true, token: existing.token };
-  const link = await prisma.shareLink.create({ data: { ...where, token: newToken() } });
+  const link = await prisma.shareLink.create({ data: { ...where, token: newToken(), createdBy: check.access.user!.id } });
   return { ok: true, token: link.token };
 }
 
-/** Stop a share link from working. */
+/**
+ * Stop a share link from working. Only whoever made it, an admin or the Head of Institute may,
+ * so an HOD can't break a QR poster someone else printed.
+ */
 export async function revokeShareLink(slug: string, token: string): Promise<{ ok: boolean }> {
   const check = await allowed(slug, "timetable.share");
   if (!check.access) return { ok: false };
-  const res = await prisma.shareLink.deleteMany({ where: { token, institutionId: check.access.inst.id } });
+  const { inst, user, member } = check.access;
+  const oversees = member?.role === "INSTITUTE_ADMIN" || member?.role === "HEAD_OF_INSTITUTE";
+  const res = await prisma.shareLink.deleteMany({ where: { token, institutionId: inst.id, ...(oversees ? {} : { createdBy: user!.id }) } });
   return { ok: res.count > 0 };
 }
 

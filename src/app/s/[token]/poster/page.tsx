@@ -17,13 +17,25 @@ export default function PosterPage({ params }: PageProps<"/s/[token]/poster">) {
   );
 }
 
+/**
+ * The app's public address for the printed QR code. Taken from config (BETTER_AUTH_URL), not
+ * from request headers a client or proxy could forge; the Host header is only a local fallback.
+ */
+async function siteOrigin(): Promise<string> {
+  const configured = process.env.BETTER_AUTH_URL;
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {}
+  }
+  const host = (await headers()).get("host") ?? "localhost:3000";
+  return `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
+}
+
 async function Poster({ params }: Pick<PageProps<"/s/[token]/poster">, "params">) {
   const { token } = await params;
   const s = await getShared(token);
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const url = `${proto}://${host}/s/${token}`;
+  const url = `${await siteOrigin()}/s/${token}`;
   const svg = await QRCode.toString(url, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
   return (
     <>

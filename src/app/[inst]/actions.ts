@@ -38,7 +38,8 @@ export async function saveVersion(slug: string, assignment: Assignment, solveMs:
       institutionId: inst.id,
       name: `Draft ${count + 1}`,
       quality: breakdown.quality,
-      stats: { ...breakdown, unscheduled: unscheduled.length, lessons: problem.lessons.length, solveMs },
+      // A display-only number from the browser: keep it a sane whole number of milliseconds.
+      stats: { ...breakdown, unscheduled: unscheduled.length, lessons: problem.lessons.length, solveMs: Math.min(Math.max(Math.round(Number(solveMs)) || 0, 0), 3_600_000) },
       snapshot: input as object,
       placements: {
         createMany: {

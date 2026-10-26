@@ -10,6 +10,7 @@ import { cacheKey, resolveAiRule, type AiRule } from "@/lib/rules/ai-spec";
 import type { RuleDraft } from "@/lib/rules/draft";
 import { toInstituteInput } from "@/lib/setup/convert";
 import { todayIso } from "@/lib/calendar";
+import type { RuleSettings } from "@/lib/solver/types";
 import { loadSetup } from "@/lib/setup/load";
 import { gridLunch, moveLunch } from "@/lib/setup/lunch";
 import {
@@ -148,18 +149,28 @@ export async function saveSettings(slug: string, input: unknown): Promise<SaveRe
       const prefs = (t.prefs as { day: number; period: number }[]).filter((x) => x.day < D && x.period < P);
       await tx.teacher.update({ where: { id: t.id }, data: { unavailable: un, prefs } });
     }
+    // Custom rules too: a slot outside the new week would otherwise point at nothing.
+    const { rules } = await tx.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { rules: true } });
     await tx.institution.update({
       where: { id: institutionId },
-      data: { name: s.name, days: s.days, periods: s.periods, passingMinutes: s.passingMinutes },
+      data: { name: s.name, days: s.days, periods: s.periods, passingMinutes: s.passingMinutes, rules: withinWeek(rules as unknown as RuleSettings, D, P) as object },
     });
   });
+}
+
+/** Rules with every custom-rule slot outside a D-day, P-period week dropped. */
+function withinWeek(rules: RuleSettings, D: number, P: number): RuleSettings {
+  if (!rules?.custom?.length) return rules;
+  return { ...rules, custom: rules.custom.map((r) => ({ ...r, slots: r.slots.filter(([d, p]) => d < D && p < P) })) };
 }
 
 export async function saveRules(slug: string, input: unknown): Promise<SaveResult> {
   const parsed = ruleSettings.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   return run(slug, "setup.institute", async (institutionId, tx) => {
-    await tx.institution.update({ where: { id: institutionId }, data: { rules: parsed.data } });
+    const inst = await tx.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { days: true, periods: true } });
+    const rules = withinWeek(parsed.data as RuleSettings, (inst.days as string[]).length, (inst.periods as unknown[]).length);
+    await tx.institution.update({ where: { id: institutionId }, data: { rules: rules as object } });
   });
 }
 
@@ -286,9 +297,14 @@ export async function saveGrids(slug: string, input: unknown, seen?: unknown): P
     const used = removed.find((g) => g._count.sections);
     if (used) throw new UserError(`Can't delete grid "${used.name}": ${plural(used._count.sections, "section")} still use it.`);
     await tx.timeGrid.deleteMany({ where: { id: { in: removed.map((g) => g.id) } } });
+    // Every grid is exactly days × periods; a ragged or oversized one would break the editor.
+    const inst = await tx.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { days: true, periods: true } });
+    const D = (inst.days as string[]).length;
+    const P = (inst.periods as unknown[]).length;
     for (const r of rows) {
-      if (isNewId(r.id)) await tx.timeGrid.create({ data: { institutionId, name: r.name, open: r.open } });
-      else await tx.timeGrid.update({ where: { id: r.id }, data: { name: r.name, open: r.open } });
+      const open = Array.from({ length: D }, (_, d) => Array.from({ length: P }, (_, p) => r.open[d]?.[p] ?? false));
+      if (isNewId(r.id)) await tx.timeGrid.create({ data: { institutionId, name: r.name, open } });
+      else await tx.timeGrid.update({ where: { id: r.id }, data: { name: r.name, open } });
     }
   });
 }
@@ -544,7 +560,7 @@ export async function saveAllocation(
     const offerings = parseRows(offeringRow, input.offerings);
     const [exO, exB, subjects, sections, teachers] = await Promise.all([
       // An HOD allocates their own department's subjects (to any section).
-      tx.offering.findMany({ where: { institutionId, ...(scope ? { subject: { departmentId: scope } } : {}) }, select: { id: true } }),
+      tx.offering.findMany({ where: { institutionId, ...(scope ? { subject: { departmentId: scope } } : {}) }, select: { id: true, basketId: true } }),
       tx.electiveBasket.findMany({ where: { institutionId }, select: { id: true, name: true, sections: { select: { id: true } } } }),
       tx.subject.findMany({ where: { institutionId, ...(scope ? { departmentId: scope } : {}) }, select: { id: true } }),
       tx.section.findMany({ where: { institutionId }, select: { id: true } }),
@@ -592,8 +608,13 @@ export async function saveAllocation(
     }
 
     const rowErrors: Record<number, string> = {};
+    const storedBasket = new Map(exO.map((x) => [x.id, x.basketId]));
     offerings.forEach((o, i) => {
       if (o.basketId && !basketIds.has(o.basketId)) rowErrors[i] = "Its elective basket was removed; pick another or clear it.";
+      // Baskets span departments, so an HOD can't move a subject into or out of one.
+      if (scope && (o.basketId ?? null) !== (isNewId(o.id) ? null : (storedBasket.get(o.id!) ?? null))) {
+        rowErrors[i] = "Only the Institute Admin puts subjects in elective baskets.";
+      }
       if (!subIds.has(o.subjectId)) rowErrors[i] = scope ? "You can only allocate your own department's subjects." : "Subject no longer exists.";
       if (o.sectionIds.some((s) => !secIds.has(s))) rowErrors[i] = "A section no longer exists.";
       if ([...o.teacherIds, ...o.labTeacherIds].some((t) => !tIds.has(t))) rowErrors[i] = "A teacher no longer exists.";

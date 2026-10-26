@@ -23,6 +23,7 @@ export interface LessonRuleSlots {
 export function customRuleSlots(problem: Problem): Map<string, LessonRuleSlots> {
   const rules = problem.input.rules.custom ?? [];
   const P = problem.input.periods.length;
+  const D = problem.input.days.length;
   const sectionYear = new Map(problem.input.sections.map((s) => [s.id, s.year]));
   const out = new Map<string, LessonRuleSlots>();
   if (!rules.length) return out;
@@ -31,6 +32,8 @@ export function customRuleSlots(problem: Problem): Map<string, LessonRuleSlots> 
     for (const r of rules) {
       if (!ruleMatches(r, l, sectionYear)) continue;
       for (const [d, p] of r.slots) {
+        // A slot outside this week (left over after the week shrank) would wrap onto another day.
+        if (d >= D || p >= P) continue;
         const s = d * P + p;
         if (r.strength === "hard") {
           if (!entry.forbid.has(s)) entry.forbid.set(s, r);

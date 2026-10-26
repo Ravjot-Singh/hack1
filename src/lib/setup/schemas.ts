@@ -113,13 +113,23 @@ export const offeringRow = z.object({
   expectedSize: z.coerce.number().int().min(1).max(100000).nullable().default(null),
 });
 
+/** A clock time "H:MM" or "HH:MM" from 00:00 to 23:59. */
+const hhmm = z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/, "Use a time like 09:30");
+const minutes = (t: string) => Number(t.split(":")[0]) * 60 + Number(t.split(":")[1]);
+
 export const instituteSettings = z.object({
   name,
   days: z.array(z.string().trim().min(1).max(20)).min(1, "Pick at least one working day").max(7),
   periods: z
-    .array(z.object({ start: z.string().regex(/^\d{1,2}:\d{2}$/), end: z.string().regex(/^\d{1,2}:\d{2}$/) }))
+    .array(z.object({ start: hhmm, end: hhmm }))
     .min(1, "Add at least one period")
-    .max(16),
+    .max(16)
+    .superRefine((ps, ctx) => {
+      ps.forEach((p, i) => {
+        if (minutes(p.end) <= minutes(p.start)) ctx.addIssue({ code: "custom", message: `P${i + 1} must end after it starts.` });
+        else if (i > 0 && minutes(p.start) < minutes(ps[i - 1].end)) ctx.addIssue({ code: "custom", message: `P${i + 1} starts before P${i} ends.` });
+      });
+    }),
   passingMinutes: count("Passing minutes", 30),
 });
 
@@ -149,7 +159,7 @@ export const ruleSettings = z.object({
           kinds: z.array(z.enum(["L", "T", "P", "H"])),
           subjectIds: z.array(z.string()),
         }),
-        slots: z.array(z.tuple([z.number().int().min(0), z.number().int().min(0)])),
+        slots: z.array(slot).max(WEEK_SLOTS),
       }),
     )
     .max(100)

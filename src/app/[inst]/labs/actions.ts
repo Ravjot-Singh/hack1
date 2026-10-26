@@ -31,7 +31,7 @@ async function roomFor(access: Access, roomId: string) {
   const institutionId = access.inst.id;
   const [room, subjects] = await Promise.all([
     prisma.room.findFirst({ where: { id: roomId, institutionId } }),
-    prisma.subject.findMany({ where: { institutionId }, select: { P: true, labRoomType: true } }),
+    prisma.subject.findMany({ where: { institutionId }, select: { P: true, labRoomType: true, theoryRoomType: true } }),
   ]);
   if (!room) return { error: "That room no longer exists." };
   if (!canManageRoom(access.member, room, labTypes(subjects))) return { error: "You can only mark the labs you look after." };

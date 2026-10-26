@@ -43,7 +43,7 @@ async function Content({ params, searchParams }: Pick<PageProps<"/[inst]/labs">,
 
   const [rooms, subjects, inst, ctx] = await Promise.all([
     prisma.room.findMany({ where: { institutionId }, orderBy: [{ type: "asc" }, { name: "asc" }] }),
-    prisma.subject.findMany({ where: { institutionId }, select: { P: true, labRoomType: true } }),
+    prisma.subject.findMany({ where: { institutionId }, select: { P: true, labRoomType: true, theoryRoomType: true } }),
     prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { periods: true } }),
     loadImpactContext(institutionId),
   ]);

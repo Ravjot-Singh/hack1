@@ -27,9 +27,14 @@ export function downMap(downtimes: Downtime[], date: string, periodCount: number
   return out;
 }
 
-/** Room types used for practicals: what a lab assistant looks after. */
-export function labTypes(subjects: Pick<SubjectInput, "P" | "labRoomType">[]): Set<string> {
-  return new Set(subjects.filter((s) => s.P > 0 && s.labRoomType).map((s) => s.labRoomType));
+/**
+ * Room types used for practicals: what a lab assistant looks after. A type any subject also
+ * uses for theory isn't a lab, so one subject's lab type (an HOD can set it) can't turn every
+ * classroom into something a lab assistant may take out of service.
+ */
+export function labTypes(subjects: Pick<SubjectInput, "P" | "labRoomType" | "theoryRoomType">[]): Set<string> {
+  const theory = new Set(subjects.map((s) => s.theoryRoomType));
+  return new Set(subjects.filter((s) => s.P > 0 && s.labRoomType && !theory.has(s.labRoomType)).map((s) => s.labRoomType));
 }
 
 /**

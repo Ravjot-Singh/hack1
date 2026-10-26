@@ -153,7 +153,8 @@ export async function setCover(slug: string, input: unknown): Promise<AbsenceRes
       note: v.note || null,
       createdBy: check.access.user!.id,
     },
-    update: { action: v.action, substituteId: v.action === "SUBSTITUTE" ? v.substituteId : null, note: v.note || null },
+    // Tie it to the version published now, or it disappears from view after a republish.
+    update: { versionId: day.version.id, action: v.action, substituteId: v.action === "SUBSTITUTE" ? v.substituteId : null, note: v.note || null },
   });
 
   const period = day.assignment[lesson.id].period;

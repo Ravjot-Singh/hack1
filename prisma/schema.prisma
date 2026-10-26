@@ -279,6 +279,8 @@ model ShareLink {
   /// "section" | "teacher" | "room"
   view          String?
   entityId      String?
+  /// Who made the link (user id); they, an admin or the Head of Institute may revoke it.
+  createdBy     String?
   createdAt     DateTime         @default(now())
 
   @@index([versionId])
@@ -341,6 +343,15 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@index([identifier])
+}
+
+/// Better Auth's sign-in/sign-up rate limits, kept in the database so they hold across
+/// serverless instances (memory storage resets per instance).
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
 }
 
 // ---------------------------------------------------------------- Roles & workflow
