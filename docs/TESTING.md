@@ -67,6 +67,13 @@ Playwright drives Microsoft Edge (installed with Windows, so no browser download
 
 `scripts/bench.ts` solves the demo college and a large synthetic college and prints the time and the result.
 
+## 6. Security (break-it) probes
+
+`tests/integration/attacks.test.ts` keeps every attack from the break-it review as a test that
+must fail to do harm: impossible dates, invite and publish races, share-link leaks, college spam,
+stale deletes, delete guards, oversized saves and notification spam. The plan and findings are in
+[`SECURITY-TESTING.md`](SECURITY-TESTING.md).
+
 ## Order to run before a release
 
 ```bash
