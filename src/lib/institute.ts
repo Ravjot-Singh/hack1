@@ -116,12 +116,15 @@ export async function createInstitute(input: InstituteInput, slug: string, isDem
       await tx.room.createMany({ data: input.rooms.map((r) => ({ ...r, institutionId })) });
       await tx.timeGrid.createMany({ data: input.grids.map((g) => ({ ...g, institutionId })) });
 
-      const programs = new Map<string, string>();
-      for (const s of input.sections) {
-        if (programs.has(s.programName)) continue;
-        const p = await tx.program.create({ data: { institutionId, departmentId: s.deptId, name: s.programName } });
-        programs.set(s.programName, p.id);
-      }
+      // Everything is written in bulk, a few statements per table rather than one per row, so a
+      // large college copies quickly even to a database on another continent.
+      const firstDept = new Map<string, string>();
+      for (const s of input.sections) if (!firstDept.has(s.programName)) firstDept.set(s.programName, s.deptId);
+      const created = await tx.program.createManyAndReturn({
+        data: [...firstDept].map(([name, departmentId]) => ({ institutionId, departmentId, name })),
+        select: { id: true, name: true },
+      });
+      const programs = new Map(created.map((p) => [p.name, p.id]));
       await tx.section.createMany({
         data: input.sections.map((s) => ({
           id: s.id,
@@ -148,27 +151,32 @@ export async function createInstitute(input: InstituteInput, slug: string, isDem
       await tx.subject.createMany({
         data: input.subjects.map(({ deptId, ...s }) => ({ ...s, departmentId: deptId, institutionId })),
       });
-      for (const b of input.baskets) {
-        await tx.electiveBasket.create({
-          data: { id: b.id, name: b.name, institutionId, sections: { connect: b.sectionIds.map((id) => ({ id })) } },
-        });
-      }
-      for (const o of input.offerings) {
-        await tx.offering.create({
-          data: {
-            id: o.id,
-            institutionId,
-            subjectId: o.subjectId,
-            batchwiseLab: o.batchwiseLab,
-            splitLabBatches: o.splitLabBatches ?? false,
-            basketId: o.basketId,
-            expectedSize: o.expectedSize,
-            sections: { connect: o.sectionIds.map((id) => ({ id })) },
-            teachers: { connect: o.teacherIds.map((id) => ({ id })) },
-            labTeachers: { connect: o.labTeacherIds.map((id) => ({ id })) },
-          },
-        });
-      }
+      await tx.electiveBasket.createMany({ data: input.baskets.map((b) => ({ id: b.id, name: b.name, institutionId })) });
+      await tx.offering.createMany({
+        data: input.offerings.map((o) => ({
+          id: o.id,
+          institutionId,
+          subjectId: o.subjectId,
+          batchwiseLab: o.batchwiseLab,
+          splitLabBatches: o.splitLabBatches ?? false,
+          basketId: o.basketId,
+          expectedSize: o.expectedSize,
+        })),
+      });
+      // Many-to-many links go straight into Prisma's join tables: "A" is the offering or basket,
+      // "B" the section or teacher (models in alphabetical order).
+      const link = async (table: string, pairs: [string, string][]) => {
+        if (!pairs.length) return;
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "${table}" ("A", "B") SELECT * FROM unnest($1::text[], $2::text[]) ON CONFLICT DO NOTHING`,
+          pairs.map((p) => p[0]),
+          pairs.map((p) => p[1]),
+        );
+      };
+      await link("_ElectiveBasketToSection", input.baskets.flatMap((b) => b.sectionIds.map((s): [string, string] => [b.id, s])));
+      await link("_OfferingSections", input.offerings.flatMap((o) => o.sectionIds.map((s): [string, string] => [o.id, s])));
+      await link("_OfferingTeachers", input.offerings.flatMap((o) => o.teacherIds.map((t): [string, string] => [o.id, t])));
+      await link("_OfferingLabTeachers", input.offerings.flatMap((o) => o.labTeacherIds.map((t): [string, string] => [o.id, t])));
       return institutionId;
     },
     { timeout: 60000 },
